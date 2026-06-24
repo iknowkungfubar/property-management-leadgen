@@ -139,8 +139,6 @@ property-management-leadgen/
 
 ## Engineering Standards
 
-See [CLAUDE.md](CLAUDE.md) for full details.
-
 - Type hints on all Python function signatures
 - pydantic models for data structures (planned)
 - 80%+ test coverage
