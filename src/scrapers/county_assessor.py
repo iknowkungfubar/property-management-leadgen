@@ -40,6 +40,49 @@ def _escape_sql_literal(value: str) -> str:
     return cleaned.replace("'", "''")
 
 
+def _validate_address(address: str) -> str:
+    """Validate and sanitize an address string for ArcGIS queries.
+
+    Only allows alphanumeric characters, spaces, hyphens, forward slashes,
+    commas, periods, and hash signs — blocks any SQL-metacharacter input.
+
+    Args:
+        address: Raw address input.
+
+    Returns:
+        Sanitized address safe for embedding in a WHERE clause.
+
+    Raises:
+        ValueError: If the address contains disallowed characters.
+
+    """
+    sanitized = re.sub(r"[^\w\s\-/,.#]", "", address).strip()
+    if not sanitized or len(sanitized) < 3:
+        msg = f"Invalid address: '{address}'"
+        raise ValueError(msg)
+    return sanitized
+
+
+def _validate_apn(apn: str) -> str:
+    """Validate an APN string — only allows digits and hyphens.
+
+    Args:
+        apn: Raw APN input.
+
+    Returns:
+        Sanitized APN.
+
+    Raises:
+        ValueError: If the APN contains invalid characters.
+
+    """
+    sanitized = re.sub(r"[^\d\-]", "", apn).strip()
+    if not sanitized:
+        msg = f"Invalid APN: '{apn}'"
+        raise ValueError(msg)
+    return sanitized
+
+
 # Known ArcGIS REST endpoints (discovered from county assessor portals)
 # These are the parcel/map-server query URLs for each county.
 COUNTY_ENDPOINTS: dict[str, str] = {
@@ -79,7 +122,7 @@ def lookup_apn_by_address(address: str, county: str) -> str | None:
 
     rate_limiter.wait_if_needed(county)
 
-    safe_address = _escape_sql_literal(address.upper())
+    safe_address = _escape_sql_literal(_validate_address(address))
     params: dict[str, Any] = {
         "where": f"UPPER(SITEADDR) LIKE '%{safe_address}%'",
         "outFields": "APN",
@@ -139,7 +182,7 @@ def get_assessed_value(apn: str, county: str) -> int | None:
 
     # APN format varies by county; the outFields column may differ
     value_field = "ASSESSEDVALUE" if county == "Orange County" else "ASSESSED_VALUE"
-    safe_apn = _escape_sql_literal(apn)
+    safe_apn = _escape_sql_literal(_validate_apn(apn))
     params: dict[str, Any] = {
         "where": f"APN = '{safe_apn}'",
         "outFields": value_field,

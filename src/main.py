@@ -136,7 +136,13 @@ def _handle_command(
         if method == "discovery.import_csv":
             agent = DiscoveryAgent(conn)
             file_path = params["file_path"]
-            records = agent.parse_csv_import(file_path)
+            # Security: resolve against safe base dir to prevent path traversal
+            import pathlib
+            safe_base = pathlib.Path.home() / ".leadgen" / "imports"
+            resolved = safe_base / file_path.lstrip("/")
+            if not str(resolved.resolve()).startswith(str(safe_base.resolve())):
+                return _error_response(req_id, "Invalid file path — outside import directory")
+            records = agent.parse_csv_import(str(resolved))
             stored = agent.save_to_database(records)
             return _success_response(req_id, {"imported": stored})
 
@@ -240,8 +246,15 @@ def _handle_command(
                 "SELECT provider, api_key, base_url, selected_model, is_active "
                 "FROM llm_settings ORDER BY provider",
             ).fetchall()
+            # Mask API keys in responses to prevent credential leakage
+            masked = []
+            for r in rows:
+                d = dict(r)
+                if d.get("api_key"):
+                    d["api_key"] = d["api_key"][:4] + "****" if len(d["api_key"]) > 4 else "****"
+                masked.append(d)
             return _success_response(
-                req_id, [dict(r) for r in rows],
+                req_id, masked,
             )
 
         if method == "settings.get":
