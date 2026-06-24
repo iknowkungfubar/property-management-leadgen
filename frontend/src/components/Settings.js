@@ -94,5 +94,40 @@ export function settingsPanel() {
         this.saveMessage = "";
       }, 4000);
     },
+
+    // ── Template ─────────────────────────────────────────────────
+    template: `<div class="space-y-6">
+  <h2 class="text-2xl font-bold">Settings</h2>
+
+  <div class="card">
+    <h3 class="text-sm font-medium text-slate-300 mb-4">LLM Provider</h3>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Provider</label>
+        <select x-model="selectedProvider" @change="onProviderChange()" class="input-field">
+          <template x-for="p in providers" :key="p.id">
+            <option :value="p.id" x-text="p.label"></option>
+          </template>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">API Key</label>
+        <input type="password" x-model="apiKey" class="input-field" placeholder="sk-…" />
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Base URL</label>
+        <input type="text" x-model="baseUrl" class="input-field" placeholder="https://api.anthropic.com" />
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">Model</label>
+        <input type="text" x-model="model" class="input-field" placeholder="claude-sonnet-4-20250514" />
+      </div>
+      <div class="flex items-center gap-3">
+        <button @click="saveSettings()" class="btn-primary">Save Settings</button>
+        <span x-show="saveMessage" x-text="saveMessage" :class="saveMessage.includes('fail') ? 'text-red-400' : 'text-emerald-400'" class="text-sm"></span>
+      </div>
+    </div>
+  </div>
+</div>`,
   };
 }

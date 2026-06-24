@@ -123,5 +123,70 @@ export function leadTable() {
       a.click();
       URL.revokeObjectURL(url);
     },
+
+    // ── Template ─────────────────────────────────────────────────
+    template: `<div class="space-y-6">
+  <!-- Header -->
+  <div class="flex items-center justify-between">
+    <h2 class="text-2xl font-bold">Leads</h2>
+    <div class="flex gap-2">
+      <button @click="exportCsv()" class="btn-secondary text-sm">Export CSV</button>
+      <button @click="exportJson()" class="btn-secondary text-sm">Export JSON</button>
+    </div>
+  </div>
+
+  <!-- Search -->
+  <div>
+    <input type="text" x-model="searchQuery" @input="applyFilter()" class="input-field" placeholder="Search by address, owner, or APN…" />
+  </div>
+
+  <!-- Table -->
+  <div class="card overflow-hidden !p-0">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="bg-slate-700/50">
+          <th @click="setSort('apn')" class="sort-header">
+            APN<template x-if="sortKey === 'apn'"><span x-text="sortAsc ? ' ▲' : ' ▼'"></span></template>
+          </th>
+          <th @click="setSort('property_address')" class="sort-header">
+            Address<template x-if="sortKey === 'property_address'"><span x-text="sortAsc ? ' ▲' : ' ▼'"></span></template>
+          </th>
+          <th @click="setSort('recorded_owner')" class="sort-header">
+            Owner<template x-if="sortKey === 'recorded_owner'"><span x-text="sortAsc ? ' ▲' : ' ▼'"></span></template>
+          </th>
+          <th @click="setSort('priority_score')" class="sort-header">
+            Score<template x-if="sortKey === 'priority_score'"><span x-text="sortAsc ? ' ▲' : ' ▼'"></span></template>
+          </th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <template x-for="lead in filteredLeads" :key="lead.apn">
+          <tr class="border-t border-slate-700 hover:bg-slate-700/30">
+            <td class="px-4 py-3 font-mono text-xs" x-text="lead.apn"></td>
+            <td class="px-4 py-3" x-text="lead.property_address"></td>
+            <td class="px-4 py-3">
+              <div x-text="lead.recorded_owner"></div>
+              <div x-show="lead.is_absentee" class="text-xs text-amber-400 mt-0.5">Absentee owner</div>
+            </td>
+            <td class="px-4 py-3">
+              <span :class="lead.priority_score >= 0.7 ? 'text-emerald-400' : lead.priority_score >= 0.4 ? 'text-amber-400' : 'text-slate-400'" x-text="lead.priority_score?.toFixed(2)"></span>
+            </td>
+            <td class="px-4 py-3">
+              <span x-show="lead.is_absentee" class="badge-yellow text-xs">Absentee</span>
+              <span x-show="lead.listing_status" class="badge-green text-xs" x-text="lead.listing_status"></span>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+    <p x-show="!filteredLeads.length" class="p-6 text-center text-sm text-slate-500">No leads match your search.</p>
+  </div>
+
+  <!-- Summary -->
+  <p class="text-xs text-slate-500">
+    Showing <strong x-text="filteredLeads.length"></strong> of <strong x-text="leads.length"></strong> leads
+  </p>
+</div>`,
   };
 }

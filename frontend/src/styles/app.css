@@ -44,6 +44,10 @@
   .badge-red {
     @apply badge bg-red-500/10 text-red-400;
   }
+
+  .sort-header {
+    @apply px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider cursor-pointer hover:text-white transition-colors select-none;
+  }
 }
 
 /* ── Scrollbar styling ─────────────────────────────────────────── */
