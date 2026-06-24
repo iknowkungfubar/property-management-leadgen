@@ -37,8 +37,7 @@ def get_active_llm_client(db_conn: sqlite3.Connection) -> LLMProvider:
 
     if not row:
         raise ValueError(
-            "No active LLM provider configured. "
-            "Please configure one in Settings.",
+            "No active LLM provider configured. Please configure one in Settings.",
         )
 
     provider_name: str = row["provider"]

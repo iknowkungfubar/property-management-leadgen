@@ -30,14 +30,14 @@ CAPTCHA_INDICATORS: list[str] = [
 class CaptchaHandler:
     """Manage CAPTCHA detection, session save/restore, and IPC events."""
 
-    def __init__(self, db_path: str) -> None:
-        """Store the database path for session persistence.
+    def __init__(self, db_conn: Any) -> None:
+        """Store the database connection for session persistence.
 
         Args:
-            db_path: Filesystem path to the SQLite database.
+            db_conn: An open SQLite connection.
 
         """
-        self._db_path = db_path
+        self._db = db_conn
 
     # ------------------------------------------------------------------
     # Detection
@@ -88,7 +88,8 @@ class CaptchaHandler:
 
         if page is not None:
             try:
-                import importlib  # noqa: PLC0415
+                import importlib
+
                 importlib.util.find_spec("playwright")
             except ImportError:
                 logger.warning("Playwright not available — using stub session data.")
@@ -116,22 +117,20 @@ class CaptchaHandler:
             session_data = {"target": target, "url": "", "_stub": True}
 
         # Persist the session data as JSON
-        import sqlite3
+        import json
 
-        conn = sqlite3.connect(self._db_path)
-        conn.execute(
+        self._db.execute(
             "CREATE TABLE IF NOT EXISTS captcha_sessions ("
             "  state_id TEXT PRIMARY KEY,"
             "  data TEXT NOT NULL,"
             "  created_at TEXT DEFAULT (datetime('now'))"
             ")",
         )
-        conn.execute(
+        self._db.execute(
             "INSERT OR REPLACE INTO captcha_sessions (state_id, data) VALUES (?, ?)",
             (state_id, json.dumps(session_data)),
         )
-        conn.commit()
-        conn.close()
+        self._db.commit()
 
         logger.info("Session state saved as '%s' from %s", state_id, target)
         return state_id
@@ -146,14 +145,10 @@ class CaptchaHandler:
             The stored session data dictionary, or an error dict if missing.
 
         """
-        import sqlite3
-
-        conn = sqlite3.connect(self._db_path)
-        row = conn.execute(
+        row = self._db.execute(
             "SELECT data FROM captcha_sessions WHERE state_id = ?",
             (state_id,),
         ).fetchone()
-        conn.close()
 
         if not row:
             logger.warning("No session found for state_id '%s'", state_id)

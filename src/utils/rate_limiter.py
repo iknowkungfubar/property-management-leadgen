@@ -58,7 +58,7 @@ class RateLimiter:
         n = self._failures.get(domain, 0)
 
         # Exponential backoff from failures — only when there are failures
-        backoff = min(self._base * 2 ** n + random.random(), MAX_BACKOFF) if n > 0 else 0.0
+        backoff = min(self._base * 2**n + random.random(), MAX_BACKOFF) if n > 0 else 0.0
 
         # Minimum interval between calls to the same domain
         # (only applies after the first known call)

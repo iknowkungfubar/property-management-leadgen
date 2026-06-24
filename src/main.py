@@ -32,6 +32,20 @@ logger = logging.getLogger(__name__)
 
 POLL_INTERVAL: float = 5.0
 
+# ── Error codes ─────────────────────────────────────────────────────
+
+ERR_AUTH: int = -10000
+ERR_RATELIMIT: int = -20000
+ERR_NOT_FOUND: int = -30000
+ERR_INTERNAL: int = -40000
+ERR_VALIDATION: int = -50000
+ERR_UNKNOWN_METHOD: int = -60000
+
+# ── Persistent DB connection ────────────────────────────────────────
+
+_db_conn: Any = None
+"""Module-level persistent database connection. Set once in main()."""
+
 
 # ── Parent watchdog ──────────────────────────────────────────────────
 
@@ -72,8 +86,6 @@ def _poll_parent(ppid: int) -> None:
 def _start_parent_watchdog() -> None:
     """Start the parent watchdog thread if we can determine the parent PID."""
     ppid = os.getppid()
-    # PID 1 typically means orphaned (e.g. running via ``cargo tauri dev``
-    # may re-parent).  Only watch if we have a real parent.
     if ppid > 1:
         thread = threading.Thread(
             target=_poll_parent,
@@ -90,11 +102,12 @@ def _start_parent_watchdog() -> None:
 def _error_response(
     request_id: str | None,
     message: str,
+    code: int = ERR_INTERNAL,
 ) -> dict[str, Any]:
     return {
         "jsonrpc": "2.0",
         "id": request_id,
-        "error": {"code": -1, "message": message},
+        "error": {"code": code, "message": message},
     }
 
 
@@ -107,14 +120,11 @@ def _success_response(
 
 def _handle_command(
     cmd: dict[str, Any],
-    db_path: str,
 ) -> dict[str, Any]:
     """Route a single command dict to the appropriate handler.
 
     Args:
-        cmd: Parsed JSON command object.  Expected keys:
-            ``id`` (optional str), ``method`` (str), ``params`` (dict).
-        db_path: Path to the SQLite database file.
+        cmd: Parsed JSON command object with ``id``, ``method``, ``params``.
 
     Returns:
         Response dict following a simple JSON-RPC 2.0 shape.
@@ -124,7 +134,7 @@ def _handle_command(
     method: str = cmd.get("method", "")
     params: dict[str, Any] = cmd.get("params", {})
 
-    conn = get_connection(db_path)
+    conn = _db_conn
     try:
         if method == "ping":
             return _success_response(req_id, {"pong": True})
@@ -136,20 +146,21 @@ def _handle_command(
 
         if method == "discovery.import_csv":
             agent = DiscoveryAgent(conn)
-            file_path = params["file_path"]
-            # Security: resolve against safe base dir to prevent path traversal
-            import pathlib
-            safe_base = pathlib.Path.home() / ".leadgen" / "imports"
+            file_path: str = params.get("file_path", "")
+            if not file_path:
+                return _error_response(req_id, "Missing file_path", ERR_VALIDATION)
+            safe_base = Path.home() / ".leadgen" / "imports"
             resolved = safe_base / file_path.lstrip("/")
             if not str(resolved.resolve()).startswith(str(safe_base.resolve())):
-                return _error_response(req_id, "Invalid file path — outside import directory")
+                return _error_response(req_id, "Invalid file path", ERR_VALIDATION)
             records = agent.parse_csv_import(str(resolved))
             stored = agent.save_to_database(records)
             return _success_response(req_id, {"imported": stored})
 
         if method == "discovery.normalize_apn":
             result = DiscoveryAgent.normalize_apn(
-                params["address"], params["county"],
+                params.get("address", ""),
+                params.get("county", ""),
             )
             return _success_response(req_id, {"apn": result})
 
@@ -159,23 +170,21 @@ def _handle_command(
                 llm = get_active_llm_client(conn)
             except ValueError:
                 llm = None
+            apn = params.get("apn", "")
+            recorded_owner = params.get("recorded_owner", "")
+            if not apn or not recorded_owner:
+                return _error_response(req_id, "Missing apn or recorded_owner", ERR_VALIDATION)
             result = agent.unmask_entity(
-                apn=params["apn"],
-                recorded_owner=params["recorded_owner"],
-                llm_client=llm,
+                apn=apn,
+                recorded_owner=recorded_owner,
             )
-            # If the entity needs SOS look-up, perform it now
             if result.get("needs_sos_lookup") and llm is not None:
-                logger.info(
-                    "Performing CA SoS look-up for '%s' …",
-                    params["recorded_owner"],
-                )
+                logger.info("Performing CA SoS look-up for '%s' …", recorded_owner)
                 sos_result = agent.perform_sos_lookup(
-                    recorded_owner=params["recorded_owner"],
+                    recorded_owner=recorded_owner,
                     llm_client=llm,
                 )
                 if sos_result.get("status") == "found" and sos_result.get("principals"):
-                    # Use the first principal's name and phone
                     first = sos_result["principals"][0]
                     result["unmasked_principal_name"] = first.get("name")
                     result["unmasked_principal_phone"] = first.get("phone")
@@ -192,35 +201,34 @@ def _handle_command(
             return _success_response(req_id, {"priority_score": score})
 
         if method == "output.export_csv":
-            agent = OutputSynthesisAgent(conn)
+            agent = OutputSynthesisAgent()
             leads = params.get("leads", [])
             csv_output = agent.format_lead_export(leads, export_format="csv")
             return _success_response(req_id, {"csv": csv_output})
 
         if method == "output.export_json":
-            agent = OutputSynthesisAgent(conn)
+            agent = OutputSynthesisAgent()
             leads = params.get("leads", [])
             json_output = agent.format_lead_export(leads, export_format="json")
             return _success_response(req_id, {"json": json_output})
 
         if method == "compliance.dnc_check":
-            is_dnc = check_dnc(params["phone"])
+            phone = params.get("phone", "")
+            if not phone:
+                return _error_response(req_id, "Missing phone", ERR_VALIDATION)
+            is_dnc = check_dnc(phone)
             return _success_response(req_id, {"is_dnc": is_dnc})
 
         if method == "captcha.detect":
-            handler = CaptchaHandler(db_path)
+            handler = CaptchaHandler(_db_conn)
             detected = handler.detect_block(params.get("page_source", ""))
             return _success_response(req_id, {"blocked": detected})
 
         if method == "captcha.emit_event":
-            handler = CaptchaHandler(db_path)
+            handler = CaptchaHandler(_db_conn)
             target = params.get("target", "")
-            # Persist a session state first so the state_id is real
             state_id = handler.save_session_state(target=target)
             event = CaptchaHandler.emit_captcha_event(target, state_id=state_id)
-            # Write the event as a standalone JSON line BEFORE the response
-            # so the Rust sidecar_command handler can buffer it as an
-            # unsolicited event for the frontend to poll.
             if event is not None:
                 sys.stdout.write(json.dumps(event) + "\n")
                 sys.stdout.flush()
@@ -232,7 +240,7 @@ def _handle_command(
                 "(provider, api_key, base_url, selected_model, is_active) "
                 "VALUES (?, ?, ?, ?, ?)",
                 (
-                    params["provider"],
+                    params.get("provider", ""),
                     params.get("api_key", ""),
                     params.get("base_url", ""),
                     params.get("selected_model", ""),
@@ -247,39 +255,47 @@ def _handle_command(
                 "SELECT provider, api_key, base_url, selected_model, is_active "
                 "FROM llm_settings ORDER BY provider",
             ).fetchall()
-            # Mask API keys in responses to prevent credential leakage
             masked = []
             for r in rows:
                 d = dict(r)
                 if d.get("api_key"):
                     d["api_key"] = d["api_key"][:4] + "****" if len(d["api_key"]) > 4 else "****"
                 masked.append(d)
-            return _success_response(
-                req_id, masked,
-            )
+            return _success_response(req_id, masked)
 
         if method == "settings.get":
+            key = params.get("key", "")
+            if not key:
+                return _error_response(req_id, "Missing key", ERR_VALIDATION)
             row = conn.execute(
-                "SELECT value FROM settings WHERE key = ?", (params["key"],),
+                "SELECT value FROM settings WHERE key = ?",
+                (key,),
             ).fetchone()
             return _success_response(req_id, {"value": row["value"] if row else None})
 
         if method == "settings.set":
+            key = params.get("key", "")
+            value = params.get("value", "")
+            if not key:
+                return _error_response(req_id, "Missing key", ERR_VALIDATION)
             conn.execute(
                 "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-                (params["key"], params["value"]),
+                (key, value),
             )
             conn.commit()
             return _success_response(req_id, "OK")
 
-        # Fallback
-        return _error_response(req_id, f"Unknown method: {method}")
+        return _error_response(req_id, f"Unknown method: {method}", ERR_UNKNOWN_METHOD)
 
+    except KeyError as exc:
+        logger.exception("Missing required parameter for '%s': %s", method, exc)
+        return _error_response(req_id, f"Missing parameter: {exc}", ERR_VALIDATION)
+    except ValueError as exc:
+        logger.exception("Validation error in '%s': %s", method, exc)
+        return _error_response(req_id, str(exc), ERR_VALIDATION)
     except Exception as exc:
         logger.exception("Error handling method '%s'", method)
-        return _error_response(req_id, str(exc))
-    finally:
-        conn.close()
+        return _error_response(req_id, str(exc), ERR_INTERNAL)
 
 
 # ── Main loop ─────────────────────────────────────────────────────────
@@ -288,8 +304,9 @@ def _handle_command(
 def main() -> None:
     """Entry point: read JSON commands from stdin, write responses to stdout.
 
-    The loop terminates cleanly on EOF (stdin close) which happens when
-    the Tauri sidecar process is killed.
+    Opens a persistent database connection at startup. The loop terminates
+    cleanly on EOF (stdin close) which happens when the Tauri sidecar
+    process is killed.
 
     """
     logging.basicConfig(
@@ -307,10 +324,10 @@ def main() -> None:
     )
 
     # Ensure the database and schema exist up front
-    conn = get_connection(db_path)
-    apply_schema(conn)
-    run_migrations(conn)
-    conn.close()
+    global _db_conn
+    _db_conn = get_connection(db_path)
+    apply_schema(_db_conn)
+    run_migrations(_db_conn)
 
     for line in sys.stdin:
         line = line.strip()
@@ -321,14 +338,22 @@ def main() -> None:
             cmd: dict[str, Any] = json.loads(line)
         except json.JSONDecodeError as exc:
             logger.exception("Invalid JSON from stdin: %s", exc)
-            response = _error_response(None, f"Parse error: {exc}")
+            response = _error_response(None, f"Parse error: {exc}", ERR_VALIDATION)
         else:
-            response = _handle_command(cmd, db_path)
+            if not isinstance(cmd, dict):
+                response = _error_response(
+                    None,
+                    "Parse error: Expected JSON object",
+                    ERR_VALIDATION,
+                )
+            else:
+                response = _handle_command(cmd)
 
         sys.stdout.write(json.dumps(response) + "\n")
         sys.stdout.flush()
 
     logger.info("Sidecar stdin closed — exiting.")
+    _db_conn.close()
 
 
 if __name__ == "__main__":

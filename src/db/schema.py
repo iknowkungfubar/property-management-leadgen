@@ -106,7 +106,8 @@ def apply_schema(conn: sqlite3.Connection) -> None:
         ("default_gamma", "0.2"),
     ]
     conn.executemany(
-        "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", defaults,
+        "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+        defaults,
     )
     conn.commit()
     logger.info("Schema applied, seed data inserted.")

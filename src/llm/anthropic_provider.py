@@ -104,9 +104,7 @@ class AnthropicProvider(LLMProvider):
         # Extract the first text content block
         try:
             content_blocks: list[dict[str, Any]] = data["content"]
-            text_block = next(
-                b for b in content_blocks if b.get("type") == "text"
-            )
+            text_block = next(b for b in content_blocks if b.get("type") == "text")
             raw_text: str = text_block["text"]
         except (KeyError, StopIteration, TypeError) as exc:
             raise RuntimeError(

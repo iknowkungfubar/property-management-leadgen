@@ -60,8 +60,7 @@ def parse_csv_file(file_path: str | Path) -> list[dict[str, str]]:
         if reader.fieldnames is None:
             raise ValueError("CSV file has no headers.")
         rows: list[dict[str, str]] = [
-            {k: v.strip() if v else "" for k, v in row.items()}
-            for row in reader
+            {k: v.strip() if v else "" for k, v in row.items()} for row in reader
         ]
 
     logger.info("Parsed %d rows from %s", len(rows), path.name)

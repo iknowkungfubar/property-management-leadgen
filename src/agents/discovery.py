@@ -72,13 +72,13 @@ class DiscoveryAgent:
 
             if mapping:
                 logger.info(
-                    "Detected format with %d columns, mapping applied.", len(mapping),
+                    "Detected format with %d columns, mapping applied.",
+                    len(mapping),
                 )
                 records: list[dict[str, Any]] = []
                 for row in reader:
                     mapped: dict[str, Any] = {
-                        target: row.get(source, "").strip()
-                        for target, source in mapping.items()
+                        target: row.get(source, "").strip() for target, source in mapping.items()
                     }
                     records.append(mapped)
             else:
@@ -110,8 +110,7 @@ class DiscoveryAgent:
         saved = 0
         if self._db is None:
             raise RuntimeError(
-                "DiscoveryAgent has no database connection — "
-                "cannot save records.",
+                "DiscoveryAgent has no database connection — cannot save records.",
             )
         for rec in records:
             apn = rec.get("apn", "").strip()
@@ -151,10 +150,12 @@ class DiscoveryAgent:
                            WHERE id = ?""",
                         (
                             rec.get("mailing_address", ""),
-                            1 if DiscoveryAgent.is_absentee_owner(
+                            1
+                            if DiscoveryAgent.is_absentee_owner(
                                 rec.get("property_address", ""),
                                 rec.get("mailing_address"),
-                            ) else 0,
+                            )
+                            else 0,
                             existing["id"],
                         ),
                     )
@@ -167,10 +168,12 @@ class DiscoveryAgent:
                             apn,
                             recorded_owner,
                             rec.get("mailing_address", ""),
-                            1 if DiscoveryAgent.is_absentee_owner(
+                            1
+                            if DiscoveryAgent.is_absentee_owner(
                                 rec.get("property_address", ""),
                                 rec.get("mailing_address"),
-                            ) else 0,
+                            )
+                            else 0,
                         ),
                     )
 

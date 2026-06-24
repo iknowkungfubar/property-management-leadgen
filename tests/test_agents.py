@@ -42,17 +42,13 @@ class TestDiscoveryAgent:
     @staticmethod
     def test_normalize_apn_orange_county() -> None:
         """OC APN format XXX-XXX-XX should be detected."""
-        apn = DiscoveryAgent.normalize_apn(
-            "APN 936-193-14, 123 Main St", "Orange County"
-        )
+        apn = DiscoveryAgent.normalize_apn("APN 936-193-14, 123 Main St", "Orange County")
         assert apn == "936-193-14"
 
     @staticmethod
     def test_normalize_apn_no_match() -> None:
         """No APN in address → None."""
-        apn = DiscoveryAgent.normalize_apn(
-            "123 Main St, Santa Ana, CA", "Orange County"
-        )
+        apn = DiscoveryAgent.normalize_apn("123 Main St, Santa Ana, CA", "Orange County")
         assert apn is None
 
     @staticmethod
@@ -87,9 +83,7 @@ class TestEntityUnmaskingAgent:
 
     @staticmethod
     def test_classify_entity_type_individual() -> None:
-        assert (
-            EntityUnmaskingAgent.classify_entity_type("Maria Garcia") == "individual"
-        )
+        assert EntityUnmaskingAgent.classify_entity_type("Maria Garcia") == "individual"
 
     @staticmethod
     def test_unmask_entity_individual() -> None:
@@ -201,5 +195,5 @@ class TestOutputSynthesisAgent:
     def test_format_unsupported_format() -> None:
         """Unsupported format raises ValueError."""
         agent = OutputSynthesisAgent()
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Unsupported export format"):
             agent.format_lead_export([], export_format="xml")

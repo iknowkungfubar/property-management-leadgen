@@ -83,7 +83,13 @@ class TestGetActiveLlmClient:
         # Seed the table with an active Anthropic entry
         conn.execute(
             """INSERT INTO llm_settings (provider, api_key, base_url, selected_model, is_active)
-               VALUES ("anthropic", "sk-test", "https://api.anthropic.com", "claude-sonnet-4-20250514", 1)"""
+                VALUES (
+                    "anthropic",
+                    "sk-test",
+                    "https://api.anthropic.com",
+                    "claude-sonnet-4-20250514",
+                    1
+                )"""
         )
         conn.commit()
         return conn

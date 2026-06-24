@@ -21,9 +21,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # CA SoS bizfile API endpoints
-SOS_SEARCH_URL: str = (
-    "https://bizfileonline.sos.ca.gov/api/search/entity-search"
-)
+SOS_SEARCH_URL: str = "https://bizfileonline.sos.ca.gov/api/search/entity-search"
 SOS_PDF_BASE: str = "https://bizfileonline.sos.ca.gov"
 
 # Indicators that the recorded owner is a business entity rather than a person
@@ -106,7 +104,6 @@ class EntityUnmaskingAgent:
         self,
         apn: str,
         recorded_owner: str,
-        llm_client: LLMProvider | None = None,
     ) -> dict[str, Any]:
         """Analyse a recorded owner and return unmasking results.
 
@@ -116,7 +113,6 @@ class EntityUnmaskingAgent:
         Args:
             apn: The property APN (for cross-referencing).
             recorded_owner: Owner name from the tax roll.
-            llm_client: Optional override LLM client.
 
         Returns:
             A dictionary with keys::
@@ -250,7 +246,8 @@ class EntityUnmaskingAgent:
             resp.raise_for_status()
             data: dict[str, Any] = resp.json()
             hits: list[dict[str, Any]] = data.get("results", []) or data.get(
-                "hits", [],
+                "hits",
+                [],
             )
             if hits:
                 return hits[0]
@@ -273,10 +270,7 @@ class EntityUnmaskingAgent:
         """
         # The CA SoS bizfile portal serves statements of information at a
         # known URL pattern.  This may change over time.
-        return (
-            f"{SOS_PDF_BASE}/api/document/"
-            f"{entity_number}/statement-of-information"
-        )
+        return f"{SOS_PDF_BASE}/api/document/{entity_number}/statement-of-information"
 
     @staticmethod
     def _download_and_parse_sos_pdf(
@@ -307,7 +301,8 @@ class EntityUnmaskingAgent:
         except httpx.RequestError:
             logger.exception(
                 "Failed to download SOS PDF for %s (%s)",
-                entity_name, entity_number,
+                entity_name,
+                entity_number,
             )
             return None
 
@@ -315,7 +310,8 @@ class EntityUnmaskingAgent:
         import tempfile
 
         with tempfile.NamedTemporaryFile(
-            suffix=".pdf", delete=False,
+            suffix=".pdf",
+            delete=False,
         ) as tmp:
             tmp.write(resp.content)
             pdf_path = tmp.name

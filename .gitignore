@@ -37,6 +37,11 @@ node_modules/
 .coverage
 htmlcov/
 
+# CI / pre-commit
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+
 # Environment & secrets
 .env
 .env.*

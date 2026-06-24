@@ -10,14 +10,29 @@
 //!   3. The Rust layer reads JSON lines from the sidecar's stdout, matching
 //!      responses by request-id.  Unsolicited event lines (e.g. captcha
 //!      detection) are buffered and exposed via `sidecar_poll_events`.
+//!
+//! Crash recovery:
+//!   If the sidecar process exits unexpectedly while handling a command,
+//!   `sidecar_command` detects the Terminated event, discards the dead
+//!   handle, and attempts to respawn.  Restarts are rate-limited to 3
+//!   attempts within a 60-second sliding window.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde_json::Value;
 use std::sync::Mutex;
+use std::time::Instant;
 use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
 use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
+
+// ── Crash-recovery constants ─────────────────────────────────────────
+
+/// Maximum number of automatic sidecar restarts within the window.
+const MAX_SIDECAR_RESTARTS: u32 = 3;
+
+/// Sliding window (seconds) within which restarts are counted.
+const RESTART_WINDOW_SECS: u64 = 60;
 
 // ── Application state ───────────────────────────────────────────────
 
@@ -35,6 +50,65 @@ struct SidecarState {
     /// Buffer for unsolicited events emitted by the sidecar
     /// (e.g. captcha_detected) that the frontend can poll.
     pending_events: Mutex<Vec<Value>>,
+    /// Number of restart attempts in the current sliding window.
+    restart_count: Mutex<u32>,
+    /// Start of the current restart-rate-limit window.
+    restart_window_start: Mutex<Instant>,
+}
+
+// ── Sidecar lifecycle helpers ───────────────────────────────────────
+
+/// Spawn a fresh Python sidecar process and return its handle.
+fn spawn_sidecar(app: &AppHandle) -> Result<SidecarHandle, String> {
+    let shell = app.shell();
+    let (rx, child) = shell
+        .sidecar("python-sidecar")
+        .map_err(|e| format!("Failed to create sidecar command: {e}"))?
+        .spawn()
+        .map_err(|e| format!("Failed to spawn Python sidecar: {e}"))?;
+    Ok(SidecarHandle { child, rx })
+}
+
+/// Attempt to restart the sidecar, subject to a rate limit.
+///
+/// Returns `Ok(())` if a new process was spawned and installed in state.
+/// Returns `Err` if the rate limit was exceeded or spawning failed.
+fn attempt_restart(app: &AppHandle, state: &SidecarState) -> Result<(), String> {
+    let now = Instant::now();
+
+    let mut window_start = state
+        .restart_window_start
+        .lock()
+        .map_err(|e| e.to_string())?;
+    let mut count = state.restart_count.lock().map_err(|e| e.to_string())?;
+
+    // Reset the sliding window if enough time has passed since the first
+    // restart in the current window.
+    if now.duration_since(*window_start).as_secs() > RESTART_WINDOW_SECS {
+        *window_start = now;
+        *count = 0;
+    }
+
+    *count += 1;
+    if *count > MAX_SIDECAR_RESTARTS {
+        return Err(format!(
+            "Sidecar crashed {count} times in {RESTART_WINDOW_SECS}s — giving up",
+        ));
+    }
+
+    eprintln!(
+        "[sidecar] Restarting (attempt {count}/{MAX_SIDECAR_RESTARTS}) ..."
+    );
+
+    let new_handle = spawn_sidecar(app)?;
+
+    // Install the new handle into shared state so subsequent commands can
+    // use it immediately.
+    let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
+    *guard = Some(new_handle);
+
+    eprintln!("[sidecar] Restart succeeded");
+    Ok(())
 }
 
 // ── IPC commands ────────────────────────────────────────────────────
@@ -44,6 +118,9 @@ struct SidecarState {
 /// The frontend calls `invoke("sidecar_command", { cmd: { method, params } })`.
 /// This handler writes the JSON command to the persistent sidecar's stdin,
 /// reads one JSON response line from its stdout, and returns the result.
+///
+/// If the sidecar process dies while waiting for a response the handler
+/// automatically attempts to respawn it (subject to a rate limit).
 #[tauri::command]
 async fn sidecar_command(
     app: AppHandle,
@@ -71,12 +148,16 @@ async fn sidecar_command(
 
     // Take exclusive ownership of the sidecar handle so we can read
     // the stdout receiver without racing a background task.
-    // MUST return the handle to state in all code paths (success, error, panic).
+    // MUST return the handle to state in all code paths unless the
+    // process has terminated (in which case the handle is dead and we
+    // attempt a restart instead).
     let mut handle = {
         let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
         guard.take().ok_or_else(|| "Sidecar is not running".to_string())?
     };
 
+    // We wrap the I/O in a closure so the restore-or-restart decision
+    // happens *after* the borrow on `handle` is released.
     let result: Result<Value, String> = (|| {
         // Serialise the command as a JSON line for the sidecar's stdin.
         let input = serde_json::to_string(&cmd).map_err(|e| e.to_string())?;
@@ -145,9 +226,24 @@ async fn sidecar_command(
             .unwrap_or(response))
     })();
 
-    // CRITICAL: Always return the handle to shared state, even on error.
-    // If we don't, every future command will get "Sidecar is not running".
+    // ── Handle lifecycle ────────────────────────────────────────────
+    // If the sidecar terminated we must drop the dead handle and attempt
+    // a restart.  Otherwise, return the handle to shared state so future
+    // commands can use it.
+
+    if result
+        .as_ref()
+        .is_err_and(|e| e.starts_with("Sidecar terminated"))
     {
+        // The process is gone — discard the old handle.
+        drop(handle);
+
+        // Attempt to respawn a fresh sidecar (rate-limited).
+        if let Err(restart_err) = attempt_restart(&app, &state) {
+            eprintln!("[sidecar] Restart failed: {restart_err}");
+        }
+    } else {
+        // Return the handle to state for the next command.
         let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
         *guard = Some(handle);
     }
@@ -187,21 +283,18 @@ fn main() {
         .manage(SidecarState {
             inner: Mutex::new(None),
             pending_events: Mutex::new(Vec::new()),
+            restart_count: Mutex::new(0),
+            restart_window_start: Mutex::new(Instant::now()),
         })
         .setup(|app| {
-            let shell = app.shell();
+            let app_handle = app.handle().clone();
+            let handle = spawn_sidecar(&app_handle)
+                .expect("Failed to spawn Python sidecar on startup");
 
-            let (rx, child) = shell
-                .sidecar("python-sidecar")
-                .expect("Failed to create sidecar command")
-                .spawn()
-                .expect("Failed to spawn Python sidecar");
-
-            // Store the persistent sidecar handle in application state.
             let state = app.state::<SidecarState>();
             {
                 let mut guard = state.inner.lock().unwrap();
-                *guard = Some(SidecarHandle { child, rx });
+                *guard = Some(handle);
             }
 
             Ok(())

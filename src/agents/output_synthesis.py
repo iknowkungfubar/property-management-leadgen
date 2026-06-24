@@ -137,12 +137,14 @@ class OutputSynthesisAgent:
         writer.writerow(hubspot_fields)
 
         for lead in self.deduplicate(leads):
-            writer.writerow([
-                lead.get("property_address", ""),
-                lead.get("unmasked_principal_name") or lead.get("recorded_owner", ""),
-                lead.get("unmasked_principal_phone", ""),
-                lead.get("unmasked_principal_email", ""),
-                lead.get("priority_score", 0.0),
-                f"APN: {lead.get('apn', '')} | County: {lead.get('county', '')}",
-            ])
+            writer.writerow(
+                [
+                    lead.get("property_address", ""),
+                    lead.get("unmasked_principal_name") or lead.get("recorded_owner", ""),
+                    lead.get("unmasked_principal_phone", ""),
+                    lead.get("unmasked_principal_email", ""),
+                    lead.get("priority_score", 0.0),
+                    f"APN: {lead.get('apn', '')} | County: {lead.get('county', '')}",
+                ]
+            )
         return output.getvalue()

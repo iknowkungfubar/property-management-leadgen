@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import sqlite3
 import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -19,7 +20,7 @@ def db_path() -> str:
     fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     yield path
-    os.unlink(path)
+    Path(path).unlink()
 
 
 @pytest.fixture
@@ -75,9 +76,7 @@ def test_create_tables_creates_all_tables(conn: sqlite3.Connection) -> None:
         "llm_settings",
         "schema_version",
     ]
-    existing = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table'"
-    ).fetchall()
+    existing = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
     existing_names = {row[0] for row in existing}
     for t in tables:
         assert t in existing_names, f"Table '{t}' is missing"
@@ -117,9 +116,7 @@ def test_schema_applied_idempotent(conn: sqlite3.Connection) -> None:
     """apply_schema can be called multiple times safely."""
     apply_schema(conn)
     apply_schema(conn)
-    tables = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table'"
-    ).fetchall()
+    tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
     assert len(tables) >= 6
 
 

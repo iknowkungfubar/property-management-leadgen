@@ -56,11 +56,7 @@ class MarketIntelligenceAgent:
             A float score; higher values indicate higher-priority leads.
 
         """
-        score = (
-            alpha * vacancy_risk
-            + beta * rental_yield_delta
-            - gamma * competitor_sentiment
-        )
+        score = alpha * vacancy_risk + beta * rental_yield_delta - gamma * competitor_sentiment
         return round(score, 4)
 
     # ------------------------------------------------------------------

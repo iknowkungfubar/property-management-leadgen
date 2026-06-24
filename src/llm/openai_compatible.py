@@ -85,9 +85,7 @@ class OpenAICompatibleProvider(LLMProvider):
         }
 
         # Request JSON mode if the backend supports it
-        if "json_object" in (
-            kwargs.get("supported_response_formats") or ["json_object"]
-        ):
+        if "json_object" in (kwargs.get("supported_response_formats") or ["json_object"]):
             payload["response_format"] = {"type": "json_object"}
 
         try:

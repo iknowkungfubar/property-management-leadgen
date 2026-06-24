@@ -87,8 +87,7 @@ def _validate_apn(apn: str) -> str:
 # These are the parcel/map-server query URLs for each county.
 COUNTY_ENDPOINTS: dict[str, str] = {
     "Orange County": (
-        "https://maps.ocgov.com/ocgis/rest/services/"
-        "Assessor/Parcels/MapServer/0/query"
+        "https://maps.ocgov.com/ocgis/rest/services/Assessor/Parcels/MapServer/0/query"
     ),
     "Los Angeles County": (
         "https://gis.lacounty.gov/server/rest/services/"

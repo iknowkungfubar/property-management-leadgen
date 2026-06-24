@@ -1,6 +1,6 @@
 # Property Management LeadGen
 
-Automated lead generation for small property management firms.  
+Automated lead generation for small property management firms.
 Targets **Orange County, CA** and surrounding areas (Los Angeles County).
 
 ## Architecture

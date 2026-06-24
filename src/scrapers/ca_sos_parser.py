@@ -85,12 +85,15 @@ class CASOSParser:
                     pages.append(text)
             full_text = "\n".join(pages)
             logger.info(
-                "Extracted %d characters from %s", len(full_text), path.name,
+                "Extracted %d characters from %s",
+                len(full_text),
+                path.name,
             )
-            return full_text
         except Exception as exc:
             logger.exception("Failed to extract text from PDF: %s", exc)
             return None
+        else:
+            return full_text
 
     # ------------------------------------------------------------------
     # LLM-based parsing
@@ -122,10 +125,11 @@ class CASOSParser:
                 system_prompt=SOS_SYSTEM_PROMPT,
                 user_prompt=f"Parse the following Statement of Information:\n\n{text}",
             )
-            return result
         except RuntimeError as exc:
             logger.exception("LLM parsing of SoS PDF failed: %s", exc)
             return {"_error": str(exc), "raw_text_preview": text[:500]}
+        else:
+            return result
 
 
 if __name__ == "__main__":

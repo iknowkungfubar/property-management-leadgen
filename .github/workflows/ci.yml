@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.13"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --frozen
+      - name: Ruff lint
+        run: uv run ruff check src/ tests/ --output-format=github
+      - name: Ruff format check
+        run: uv run ruff format --check src/ tests/
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --frozen
+      - name: Run tests
+        run: uv run pytest tests/ -v --tb=short -q
+      - name: Coverage
+        run: uv run pytest tests/ --cov=src --cov-report=term-missing --tb=no -q
+
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --frozen
+      - name: pip-audit
+        run: |
+          uv pip install pip-audit
+          uv run pip-audit --strict
+      - name: Bandit SAST
+        run: |
+          uv pip install bandit
+          uv run bandit -r src/ --quiet --skip B101,B311
+
+  cargo-check:
+    name: Rust Check
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        toolchain: [stable]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: ${{ matrix.toolchain }}
+      - run: cargo check --manifest-path src-tauri/Cargo.toml
