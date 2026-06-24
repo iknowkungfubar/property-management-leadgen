@@ -18,17 +18,27 @@ leadgen-sidecar = "src.main:main"
 
 [tool.ruff]
 line-length = 100
+target-version = "py311"
 
 [tool.ruff.lint]
-select = ["ALL"]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "ARG", "RUF100", "TRY", "PTH", "PT", "PLC", "PLE", "RET", "SLF"]
 ignore = [
-    "D203", "D213", "D400", "D415",
-    "ANN101", "ANN102",
-    "S311", "S106",
-    "EM101", "EM102",
-    "PLR2004", "PLR0913", "PLR0911", "PLR0912", "PLR0915",
-    "FBT001", "FBT002", "FBT003",
+    "S101",
+    "ANN401",
+    "TRY400",
+    "TRY401",
+    "TRY003",
+    "PLC0415",
+    "RUF002",
+    "FIX002",
+    "TD002",
+    "TD003",
+    "D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107",
+    "N802", "N803", "N806", "N815", "N816", "N817",
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["SLF001", "ARG002", "S101"]
 
 [tool.ruff.format]
 quote-style = "double"

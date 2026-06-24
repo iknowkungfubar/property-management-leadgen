@@ -254,9 +254,9 @@ class EntityUnmaskingAgent:
             )
             if hits:
                 return hits[0]
-        except httpx.RequestError as exc:
+        except httpx.RequestError:
             logger.exception("SOS API request failed")
-        except (KeyError, json.JSONDecodeError) as exc:
+        except (KeyError, json.JSONDecodeError):
             logger.exception("Failed to parse SOS API response")
         return None
 
@@ -295,7 +295,7 @@ class EntityUnmaskingAgent:
             Parsed entity data, or ``None`` on failure.
 
         """
-        from src.scrapers.ca_sos_parser import CASOSParser  # noqa: PLC0415
+        from src.scrapers.ca_sos_parser import CASOSParser
 
         pdf_url = EntityUnmaskingAgent._get_sos_pdf_url(entity_number)
         if not pdf_url:
@@ -312,7 +312,7 @@ class EntityUnmaskingAgent:
             return None
 
         # Save to a temporary file for CASOSParser
-        import tempfile  # noqa: PLC0415
+        import tempfile
 
         with tempfile.NamedTemporaryFile(
             suffix=".pdf", delete=False,

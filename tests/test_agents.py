@@ -2,16 +2,12 @@
 
 from __future__ import annotations
 
-import os
-import tempfile
-
 import pytest
 
 from src.agents.discovery import DiscoveryAgent
 from src.agents.entity_unmasking import EntityUnmaskingAgent
 from src.agents.market_intelligence import MarketIntelligenceAgent
 from src.agents.output_synthesis import OutputSynthesisAgent
-
 
 # ── Discovery Agent ─────────────────────────────────────────────────
 

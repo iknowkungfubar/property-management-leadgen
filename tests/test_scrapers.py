@@ -4,12 +4,9 @@ from __future__ import annotations
 
 import time
 
-import pytest
-
 from src.scrapers.ca_sos_parser import CASOSParser
 from src.scrapers.rental_listings import check_frbo_listings
 from src.utils.rate_limiter import RateLimiter
-
 
 # ── CASOSParser ─────────────────────────────────────────────────────
 

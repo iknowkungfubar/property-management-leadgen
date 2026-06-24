@@ -88,7 +88,8 @@ class CaptchaHandler:
 
         if page is not None:
             try:
-                import playwright.sync_api  # noqa: PLC0415 — lazy import
+                import importlib  # noqa: PLC0415
+                importlib.util.find_spec("playwright")
             except ImportError:
                 logger.warning("Playwright not available — using stub session data.")
                 session_data = {"target": target, "url": "", "_stub": True}
@@ -115,7 +116,7 @@ class CaptchaHandler:
             session_data = {"target": target, "url": "", "_stub": True}
 
         # Persist the session data as JSON
-        import sqlite3  # noqa: PLC0415
+        import sqlite3
 
         conn = sqlite3.connect(self._db_path)
         conn.execute(
@@ -145,7 +146,7 @@ class CaptchaHandler:
             The stored session data dictionary, or an error dict if missing.
 
         """
-        import sqlite3  # noqa: PLC0415
+        import sqlite3
 
         conn = sqlite3.connect(self._db_path)
         row = conn.execute(

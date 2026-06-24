@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import json
 import sqlite3
 
 import pytest
 
 from src.llm.base import LLMProvider
 from src.llm.factory import get_active_llm_client
-
 
 # ── Mock provider for testing ───────────────────────────────────────
 

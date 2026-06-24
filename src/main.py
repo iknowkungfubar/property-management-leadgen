@@ -14,6 +14,7 @@ import logging
 import os
 import sys
 import threading
+from pathlib import Path
 from typing import Any
 
 from src.agents.discovery import DiscoveryAgent
@@ -302,7 +303,7 @@ def main() -> None:
 
     db_path = os.environ.get(
         "LEADGEN_DB_PATH",
-        os.path.join(os.path.expanduser("~"), ".leadgen", "leadgen.db"),
+        str(Path.home() / ".leadgen" / "leadgen.db"),
     )
 
     # Ensure the database and schema exist up front

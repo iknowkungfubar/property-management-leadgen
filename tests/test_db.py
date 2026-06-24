@@ -10,7 +10,7 @@ import pytest
 
 from src.db.connection import get_connection
 from src.db.migrations import get_current_version, run_migrations
-from src.db.schema import apply_schema, create_tables
+from src.db.schema import apply_schema
 
 
 @pytest.fixture

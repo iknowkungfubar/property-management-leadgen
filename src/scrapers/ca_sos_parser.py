@@ -66,7 +66,7 @@ class CASOSParser:
 
         """
         try:
-            from pypdf import PdfReader  # noqa: PLC0415 — lazy import
+            from pypdf import PdfReader
         except ImportError:
             logger.exception("pypdf is not installed — cannot parse PDFs.")
             return None
