@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en" class="bg-slate-900 text-white">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Property Management LeadGen</title>
+    <link rel="stylesheet" href="/src/styles/app.css" />
+  </head>
+  <body
+    x-data="app()"
+    x-init="init"
+    class="min-h-screen bg-slate-900 text-slate-100 font-sans antialiased"
+  >
+    <!-- Captcha Modal Overlay -->
+    <div
+      x-show="captchaEvent !== null"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      style="display: none;"
+    >
+      <div class="bg-slate-800 border border-slate-700 rounded-xl shadow-2xl max-w-lg w-full mx-4 p-6">
+        <h2 class="text-xl font-semibold text-amber-400 mb-2">⚠ CAPTCHA Detected</h2>
+        <p class="text-sm text-slate-300 mb-4">
+          An automation check was triggered on
+          <span x-text="captchaEvent?.target" class="font-mono text-white"></span>.
+        </p>
+        <div class="bg-slate-900 rounded-lg p-4 mb-4 text-xs text-slate-400 font-mono">
+          <p><span class="text-slate-500">state_id:</span> <span x-text="captchaEvent?.state_id"></span></p>
+          <p class="mt-1 text-slate-500">Open the headed browser, resolve the challenge, then resume.</p>
+        </div>
+        <div class="flex gap-3 justify-end">
+          <button
+            @click="captchaEvent = null; skipLead()"
+            class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm transition-colors"
+          >
+            Skip Lead
+          </button>
+          <button
+            @click="resumeAutomation()"
+            class="px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-500 text-sm font-medium transition-colors"
+          >
+            Resume Automation
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation sidebar -->
+    <div class="flex h-screen">
+      <!-- Sidebar -->
+      <aside class="w-56 bg-slate-800 border-r border-slate-700 flex flex-col shrink-0">
+        <div class="px-5 py-6 border-b border-slate-700">
+          <h1 class="text-lg font-bold text-brand-400 tracking-tight">LeadGen</h1>
+          <p class="text-xs text-slate-500 mt-0.5">Property Management</p>
+        </div>
+        <nav class="flex-1 px-3 py-4 space-y-1">
+          <a
+            href="#"
+            @click.prevent="currentView = 'dashboard'"
+            :class="currentView === 'dashboard' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700/50'"
+            class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+            Dashboard
+          </a>
+          <a
+            href="#"
+            @click.prevent="currentView = 'leads'"
+            :class="currentView === 'leads' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700/50'"
+            class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            Leads
+          </a>
+          <a
+            href="#"
+            @click.prevent="currentView = 'settings'"
+            :class="currentView === 'settings' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700/50'"
+            class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            Settings
+          </a>
+        </nav>
+        <div class="px-5 py-4 border-t border-slate-700 text-xs text-slate-600">
+          v0.1.0
+        </div>
+      </aside>
+
+      <!-- Main content -->
+      <main class="flex-1 overflow-y-auto p-6">
+        <template x-if="currentView === 'dashboard'">
+          <div x-data="dashboard()">
+            <div x-init="init"></div>
+          </div>
+        </template>
+        <template x-if="currentView === 'leads'">
+          <div x-data="leadTable()">
+            <div x-init="init"></div>
+          </div>
+        </template>
+        <template x-if="currentView === 'settings'">
+          <div x-data="settingsPanel()">
+            <div x-init="init"></div>
+          </div>
+        </template>
+      </main>
+    </div>
+
+    <script type="module" src="/src/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,65 @@
+# Agentic/AI artifacts — NEVER commit
+CLAUDE.md
+.cursorrules
+.copilot-instructions.md
+AGENTS.md
+SOUL.md
+.hermes/
+.claude/
+.claude.json
+.copilot/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# Rust/Tauri
+target/
+node_modules/
+
+# Database — local user data, never share
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.crt
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Downloads (scraped data, cached pages)
+downloads/
+scraped_data/
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.gif
+
+# Logs
+*.log

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicovrc/tauri-v2-schema/refs/heads/main/tauri.conf.json",
+  "productName": "Property Management LeadGen",
+  "version": "0.1.0",
+  "identifier": "com.turintech.property-management-leadgen",
+  "build": {
+    "frontendDist": "../frontend/dist",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "cd frontend && npm run build",
+    "beforeDevCommand": "cd frontend && npm run dev"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Property Management LeadGen",
+        "width": 1200,
+        "height": 800,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  },
+  "plugins": {
+    "shell": {
+      "sidecar": [
+        {
+          "name": "python-sidecar",
+          "args": true
+        }
+      ],
+      "scope": [
+        {
+          "name": "python-sidecar",
+          "sidecar": true,
+          "args": true
+        }
+      ]
+    }
+  }
+}

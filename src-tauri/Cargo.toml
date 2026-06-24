@@ -1,0 +1,19 @@
+[package]
+name = "property-management-leadgen"
+version = "0.1.0"
+description = "Agentic lead generation for property management — Tauri v2 desktop shell"
+authors = ["Turin"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["devtools"] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
