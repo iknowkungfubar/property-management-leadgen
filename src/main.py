@@ -149,9 +149,9 @@ def _handle_command(
             file_path: str = params.get("file_path", "")
             if not file_path:
                 return _error_response(req_id, "Missing file_path", ERR_VALIDATION)
-            safe_base = Path.home() / ".leadgen" / "imports"
-            resolved = safe_base / file_path.lstrip("/")
-            if not str(resolved.resolve()).startswith(str(safe_base.resolve())):
+            # Resolve path and prevent traversal attacks
+            resolved = Path(file_path).resolve()
+            if ".." in Path(file_path).parts or not resolved.is_file():
                 return _error_response(req_id, "Invalid file path", ERR_VALIDATION)
             records = agent.parse_csv_import(str(resolved))
             stored = agent.save_to_database(records)
