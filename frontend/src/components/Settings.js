@@ -74,19 +74,15 @@ export function settingsPanel() {
 
       try {
         const ipc = Alpine.store("ipc");
-        // Save to the llm_settings relational table via the sidecar.
-        // The sidecar handles INSERT OR REPLACE into llm_settings with
-        // the correct columns: provider, api_key, base_url, selected_model, is_active.
-        for (const p of PROVIDERS) {
-          const isActive = p.id === this.selectedProvider;
-          await ipc.send("llm_settings.set", {
-            provider: p.id,
-            api_key: isActive ? this.apiKey : "",
-            base_url: isActive ? this.baseUrl : "",
-            selected_model: isActive ? this.model : (p.id === this.selectedProvider ? this.model : ""),
-            is_active: isActive ? 1 : 0,
-          });
-        }
+        // Save only the active provider to the llm_settings table.
+        // Non-active providers keep their existing values in the DB.
+        await ipc.send("llm_settings.set", {
+          provider: this.selectedProvider,
+          api_key: this.apiKey,
+          base_url: this.baseUrl,
+          selected_model: this.model,
+          is_active: 1,
+        });
 
         this.saveMessage = "Saved successfully.";
       } catch (err) {

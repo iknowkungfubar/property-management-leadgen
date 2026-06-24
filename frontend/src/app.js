@@ -42,7 +42,7 @@ async function ipc(method, params = {}) {
 
   // Dev fallback (no Tauri): send to a local dev-proxy or simulate
   try {
-    const resp = await fetch("http://localhost:1421/ipc", {
+    const resp = await fetch("http://localhost:1420/ipc", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -84,6 +84,7 @@ function app() {
     leads: [],
     isProcessing: false,
     captchaEvent: null,
+    _pollTimer: null,
     status: {
       discovery: "idle",
       unmasking: "idle",
@@ -132,7 +133,14 @@ function app() {
             // Sidecar might not support polling yet
           }
         };
-        setInterval(pollEvents, 2000);
+        this._pollTimer = setInterval(pollEvents, 2000);
+      }
+    },
+
+    destroy() {
+      if (this._pollTimer) {
+        clearInterval(this._pollTimer);
+        this._pollTimer = null;
       }
     },
 

@@ -89,10 +89,6 @@ def test_schema_version_exists(conn: sqlite3.Connection) -> None:
     assert row is not None
     assert row[0] == 1
 
-    pragma = conn.execute("PRAGMA user_version").fetchone()
-    assert pragma is not None
-    assert pragma[0] == 1
-
 
 def test_seed_settings_inserted(conn: sqlite3.Connection) -> None:
     """Default settings should be seeded by apply_schema."""
@@ -107,7 +103,7 @@ def test_seed_settings_inserted(conn: sqlite3.Connection) -> None:
 
 
 def test_get_current_version(conn: sqlite3.Connection) -> None:
-    """get_current_version returns the PRAGMA user_version."""
+    """get_current_version returns the version from schema_version."""
     assert get_current_version(conn) == 1
 
 

@@ -39,8 +39,6 @@ ENTITY_INDICATORS: list[re.Pattern[str]] = [
     re.compile(r"\bLIMITED\b", re.IGNORECASE),
     re.compile(r"\bCOMPANY\b", re.IGNORECASE),
     re.compile(r"\bHOLDINGS?\b", re.IGNORECASE),
-    re.compile(r"\bPROPERT(?:Y|IES)\b", re.IGNORECASE),
-    re.compile(r"\bMANAGEMENT\b", re.IGNORECASE),
 ]
 
 

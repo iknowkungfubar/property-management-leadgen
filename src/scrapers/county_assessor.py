@@ -97,17 +97,17 @@ def lookup_apn_by_address(address: str, county: str) -> str | None:
         rate_limiter.record_failure(county)
         return None
 
-    rate_limiter.record_success(county)
-
     try:
         features: list[dict[str, Any]] = data.get("features", [])
         if features:
             apn: str = str(features[0]["attributes"].get("APN", ""))
             logger.info("Found APN '%s' for '%s' in %s", apn, address, county)
+            rate_limiter.record_success(county)
             return apn
     except (KeyError, IndexError, TypeError) as exc:
         logger.warning("Unexpected ArcGIS response structure: %s", exc)
 
+    rate_limiter.record_success(county)
     logger.info("No APN found for '%s' in %s", address, county)
     return None
 
@@ -157,15 +157,15 @@ def get_assessed_value(apn: str, county: str) -> int | None:
         rate_limiter.record_failure(county)
         return None
 
-    rate_limiter.record_success(county)
-
     try:
         features = data.get("features", [])
         if features:
             raw = features[0]["attributes"].get(value_field)
             if raw is not None:
+                rate_limiter.record_success(county)
                 return int(raw)
     except (KeyError, IndexError, TypeError, ValueError) as exc:
         logger.warning("Could not parse assessed value for APN %s: %s", apn, exc)
 
+    rate_limiter.record_success(county)
     return None

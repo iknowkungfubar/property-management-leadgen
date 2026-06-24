@@ -20,16 +20,18 @@ MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {
 
 
 def get_current_version(conn: sqlite3.Connection) -> int:
-    """Read the schema version from ``PRAGMA user_version``.
+    """Read the schema version from the ``schema_version`` table.
 
     Args:
         conn: An open SQLite connection.
 
     Returns:
-        The current schema version integer.
+        The current schema version integer, or 0 if not yet initialised.
 
     """
-    row = conn.execute("PRAGMA user_version").fetchone()
+    row = conn.execute(
+        "SELECT version FROM schema_version ORDER BY version DESC LIMIT 1",
+    ).fetchone()
     version: int = row[0] if row else 0
     return version
 
@@ -37,8 +39,9 @@ def get_current_version(conn: sqlite3.Connection) -> int:
 def run_migrations(conn: sqlite3.Connection) -> None:
     """Apply all pending migrations sequentially.
 
-    Reads the current ``PRAGMA user_version``, then applies every migration
-    whose key is greater than that version, in ascending key order.
+    Reads the current version from ``schema_version``, then applies
+    every migration whose key is greater than that version, in
+    ascending key order.
 
     Args:
         conn: An open SQLite connection.
@@ -51,7 +54,10 @@ def run_migrations(conn: sqlite3.Connection) -> None:
         if version > current:
             logger.info("Applying migration %d …", version)
             MIGRATIONS[version](conn)
-            conn.execute(f"PRAGMA user_version = {version}")
+            conn.execute(
+                "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",
+                (version,),
+            )
             conn.commit()
             logger.info("Migration %d applied.", version)
 

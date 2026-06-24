@@ -67,13 +67,16 @@ class CaptchaHandler:
 
     def save_session_state(
         self,
-        page: Any,  # playwright Page (not imported at module level)
+        page: Any = None,  # playwright Page (optional — saves minimal entry when absent)
         target: str = "",
     ) -> str:
         """Capture browser cookies and localStorage, persist them, return a state ID.
 
+        When *page* is ``None``, a minimal entry (target-only) is saved so the
+        returned state ID is always usable with :meth:`resume_from_session`.
+
         Args:
-            page: A Playwright ``Page`` instance.
+            page: A Playwright ``Page`` instance, or ``None`` for a stub entry.
             target: Human-readable name of the portal triggering the block.
 
         Returns:
@@ -81,29 +84,37 @@ class CaptchaHandler:
 
         """
         state_id = uuid.uuid4().hex[:16]
+        session_data: dict[str, Any]
 
-        try:
-            import playwright.sync_api  # noqa: PLC0415 — lazy import
-        except ImportError:
-            logger.warning("Playwright not available — using stub session save.")
-            return state_id
+        if page is not None:
+            try:
+                import playwright.sync_api  # noqa: PLC0415 — lazy import
+            except ImportError:
+                logger.warning("Playwright not available — using stub session data.")
+                session_data = {"target": target, "url": "", "_stub": True}
+            else:
+                try:
+                    cookies = page.context.cookies()
+                    storage = page.evaluate("() => JSON.stringify(localStorage)")
+                    session_data = {
+                        "cookies": cookies,
+                        "local_storage": storage,
+                        "target": target,
+                        "url": page.url,
+                    }
+                except Exception as exc:
+                    logger.exception("Failed to capture session state: %s", exc)
+                    url = getattr(page, "url", "")
+                    session_data = {
+                        "cookies": [],
+                        "local_storage": "{}",
+                        "target": target,
+                        "url": url,
+                    }
+        else:
+            session_data = {"target": target, "url": "", "_stub": True}
 
-        try:
-            cookies = page.context.cookies()
-            storage = page.evaluate("() => JSON.stringify(localStorage)")
-        except Exception as exc:
-            logger.exception("Failed to capture session state: %s", exc)
-            cookies = []
-            storage = "{}"
-
-        session_data: dict[str, Any] = {
-            "cookies": cookies,
-            "local_storage": storage,
-            "target": target,
-            "url": page.url,
-        }
-
-        # Persist the session data as JSON (could store in a dedicated table)
+        # Persist the session data as JSON
         import sqlite3  # noqa: PLC0415
 
         conn = sqlite3.connect(self._db_path)
@@ -158,22 +169,39 @@ class CaptchaHandler:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def emit_captcha_event(target: str) -> dict[str, Any]:
+    def emit_captcha_event(
+        target: str,
+        state_id: str | None = None,
+    ) -> dict[str, Any] | None:
         """Return a structured event dict the Tauri frontend can display.
+
+        *state_id* MUST have been previously persisted via
+        :meth:`save_session_state` so the frontend can later call
+        :meth:`resume_from_session` with a valid key.
 
         Args:
             target: Name of the portal triggering the CAPTCHA.
+            state_id: A persisted session ID from :meth:`save_session_state`.
+                When ``None``, ``None`` is returned and no event is emitted.
 
         Returns:
-            A dict matching the IPC event schema::
+            An event dict matching the IPC schema::
 
                 { "event": "captcha_detected", "target": str, "state_id": str }
 
+            or ``None`` when *state_id* is not provided.
+
         """
+        if state_id is None:
+            logger.warning(
+                "emit_captcha_event called without a state_id — no event emitted.",
+            )
+            return None
+
         event: dict[str, Any] = {
             "event": "captcha_detected",
             "target": target,
-            "state_id": uuid.uuid4().hex[:16],
+            "state_id": state_id,
         }
         logger.info("Emitting CAPTCHA event: %s", event)
         return event

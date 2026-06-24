@@ -1,4 +1,10 @@
-"""Connection manager providing WAL-mode SQLite connections with optional asyncio locking."""
+"""Connection manager providing WAL-mode SQLite connections.
+
+Every call to :func:`get_connection` opens a fresh synchronous connection.
+The async variants use ``run_in_executor`` to avoid blocking the event loop
+but do **not** serialise writes — callers are responsible for their own
+concurrency control at the agent level.
+"""
 
 from __future__ import annotations
 
@@ -8,9 +14,6 @@ import sqlite3
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
-
-_connection: sqlite3.Connection | None = None
-_write_lock: asyncio.Lock = asyncio.Lock()
 
 
 def get_connection(db_path: str | Path) -> sqlite3.Connection:
@@ -36,11 +39,11 @@ def get_connection(db_path: str | Path) -> sqlite3.Connection:
 
 
 async def get_connection_async(db_path: str | Path) -> sqlite3.Connection:
-    """Return a connection guarded by an asyncio lock for write serialisation.
+    """Return a fresh connection, offloaded from the event loop via executor.
 
-    This wraps :func:`get_connection` in an async context manager pattern.
-    Callers should use the returned connection normally but rely on the shared
-    lock to prevent concurrent writes from multiple coroutines.
+    This avoids blocking the event loop during sqlite3 connect/setup.  It does
+    **not** provide any write serialisation — wrap call sites in an agent-level
+    lock if you need sequential writes across coroutines.
 
     Args:
         db_path: Filesystem path to the SQLite database file.
@@ -54,7 +57,7 @@ async def get_connection_async(db_path: str | Path) -> sqlite3.Connection:
 
 
 async def close_connection(conn: sqlite3.Connection | None = None) -> None:
-    """Close the given connection, or the module-level cached connection.
+    """Close a SQLite connection without blocking the event loop.
 
     Args:
         conn: The connection to close.  If ``None``, a no-op.

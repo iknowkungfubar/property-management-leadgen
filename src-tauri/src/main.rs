@@ -71,91 +71,88 @@ async fn sidecar_command(
 
     // Take exclusive ownership of the sidecar handle so we can read
     // the stdout receiver without racing a background task.
+    // MUST return the handle to state in all code paths (success, error, panic).
     let mut handle = {
         let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
         guard.take().ok_or_else(|| "Sidecar is not running".to_string())?
     };
 
-    // Serialise the command as a JSON line for the sidecar's stdin.
-    let input = serde_json::to_string(&cmd).map_err(|e| e.to_string())?;
+    let result: Result<Value, String> = (|| {
+        // Serialise the command as a JSON line for the sidecar's stdin.
+        let input = serde_json::to_string(&cmd).map_err(|e| e.to_string())?;
 
-    // Write the JSON command followed by a newline (sidecar uses line-based protocol).
-    handle
-        .child
-        .write(input.as_bytes())
-        .map_err(|e| format!("Failed to write to sidecar stdin: {e}"))?;
-    handle
-        .child
-        .write(b"\n")
-        .map_err(|e| format!("Failed to write newline to sidecar stdin: {e}"))?;
+        // Write the JSON command followed by a newline
+        handle
+            .child
+            .write(input.as_bytes())
+            .map_err(|e| format!("Failed to write to sidecar stdin: {e}"))?;
+        handle
+            .child
+            .write(b"\n")
+            .map_err(|e| format!("Failed to write newline to sidecar stdin: {e}"))?;
 
-    // Read stdout lines until we find a JSON response that looks like
-    // a command reply.  Lines carrying an "event" field are treated as
-    // unsolicited sidecar events and forwarded to the frontend.
-    let response: Value = loop {
-        match handle.rx.recv().await {
-            Some(CommandEvent::Stdout(line)) => {
-                if let Ok(value) = serde_json::from_str::<Value>(&line) {
-                    // Unsolicited event → buffer for frontend polling
-                    if value.get("event").is_some() {
-                        let mut events = state
-                            .pending_events
-                            .lock()
-                            .map_err(|e| e.to_string())?;
-                        events.push(value);
-                        continue;
+        // Read stdout lines until we find a JSON response
+        let response: Value = loop {
+            match handle.rx.recv().await {
+                Some(CommandEvent::Stdout(line)) => {
+                    if let Ok(value) = serde_json::from_str::<Value>(&line) {
+                        if value.get("event").is_some() {
+                            let mut events = state
+                                .pending_events
+                                .lock()
+                                .map_err(|e| e.to_string())?;
+                            events.push(value);
+                            continue;
+                        }
+                        if value.get("jsonrpc").is_some() || value.get("result").is_some() {
+                            break value;
+                        }
+                        if value.is_object() {
+                            break value;
+                        }
                     }
-                    // Has "jsonrpc" key → assumed to be a command response
-                    if value.get("jsonrpc").is_some() || value.get("result").is_some() {
-                        break value;
-                    }
-                    // Fallback: treat any JSON object as a response
-                    if value.is_object() {
-                        break value;
-                    }
+                    eprintln!("[sidecar:stdout] (non-JSON) {}", line);
                 }
-                // Non-JSON stdout — log and keep reading
-                eprintln!("[sidecar:stdout] (non-JSON) {}", line);
+                Some(CommandEvent::Stderr(line)) => {
+                    eprintln!("[sidecar:err] {}", line);
+                }
+                Some(CommandEvent::Terminated(payload)) => {
+                    eprintln!("[sidecar] Process exited unexpectedly: {:?}", payload);
+                    return Err(format!(
+                        "Sidecar terminated (code {:?})",
+                        payload.code,
+                    ));
+                }
+                None => {
+                    return Err("Sidecar stdout channel closed".to_string());
+                }
+                _ => {}
             }
-            Some(CommandEvent::Stderr(line)) => {
-                eprintln!("[sidecar:err] {}", line);
-            }
-            Some(CommandEvent::Terminated(payload)) => {
-                eprintln!("[sidecar] Process exited unexpectedly: {:?}", payload);
-                // Put the handle back so state is consistent (rx is closed)
-                *state.inner.lock().map_err(|e| e.to_string())? = Some(handle);
-                return Err(format!(
-                    "Sidecar terminated (code {:?})",
-                    payload.code,
-                ));
-            }
-            None => {
-                return Err("Sidecar stdout channel closed".to_string());
-            }
-            _ => {}
-        }
-    };
+        };
 
-    // Return the sidecar handle to shared state for the next command.
+        // Check for error response
+        if let Some(err_obj) = response.get("error") {
+            let msg = err_obj
+                .get("message")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Unknown error");
+            return Err(msg.to_string());
+        }
+
+        Ok(response
+            .get("result")
+            .cloned()
+            .unwrap_or(response))
+    })();
+
+    // CRITICAL: Always return the handle to shared state, even on error.
+    // If we don't, every future command will get "Sidecar is not running".
     {
         let mut guard = state.inner.lock().map_err(|e| e.to_string())?;
         *guard = Some(handle);
     }
 
-    // Check for error response (JSON-RPC style).
-    if let Some(err_obj) = response.get("error") {
-        let msg = err_obj
-            .get("message")
-            .and_then(|v| v.as_str())
-            .unwrap_or("Unknown error");
-        return Err(msg.to_string());
-    }
-
-    // Return the "result" field if present, otherwise the whole response.
-    Ok(response
-        .get("result")
-        .cloned()
-        .unwrap_or(response))
+    result
 }
 
 /// Return any unsolicited events buffered since the last poll.

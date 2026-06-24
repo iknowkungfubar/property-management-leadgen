@@ -33,6 +33,10 @@ node_modules/
 *.db-journal
 *.db-wal
 
+# Coverage
+.coverage
+htmlcov/
+
 # Environment & secrets
 .env
 .env.*

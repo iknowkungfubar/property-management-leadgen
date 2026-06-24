@@ -8,7 +8,7 @@ from typing import Any
 
 import httpx
 
-from src.llm.base import LLMProvider
+from src.llm.base import LLMProvider, strip_json_fences
 
 logger = logging.getLogger(__name__)
 
@@ -113,14 +113,7 @@ class AnthropicProvider(LLMProvider):
                 "No text content block in Anthropic response",
             ) from exc
 
-        # The model may wrap JSON in markdown fences
-        cleaned = raw_text.strip()
-        if cleaned.startswith("```"):
-            # Remove ```json … ``` fences
-            cleaned = cleaned.removeprefix("```json").removeprefix("```")
-            if "```" in cleaned:
-                cleaned = cleaned[: cleaned.rindex("```")]
-            cleaned = cleaned.strip()
+        cleaned = strip_json_fences(raw_text)
 
         try:
             return dict(json.loads(cleaned))

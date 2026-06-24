@@ -36,12 +36,31 @@ POLL_INTERVAL: float = 5.0
 
 
 def _poll_parent(ppid: int) -> None:
-    """Exit the process if *ppid* is no longer alive.
+    """Exit the process if *ppid* is no longer the parent.
+
+    Two safety checks:
+      1. Compare ``os.getppid()`` against the stored *ppid* — if they differ
+         the process has been re‑parented (e.g. Tauri exited and init adopted
+         us), so we exit immediately.
+      2. ``os.kill(ppid, 0)`` — confirms the original parent PID is still
+         alive in the process table (catches the window before re‑parenting).
 
     Runs as a daemon thread so it does not block normal shutdown.
     """
     while True:
         threading.Event().wait(POLL_INTERVAL)
+
+        # Primary check: detect re-parenting
+        current_ppid = os.getppid()
+        if current_ppid != ppid:
+            logger.info(
+                "Parent PID changed from %d to %d — shutting down sidecar.",
+                ppid,
+                current_ppid,
+            )
+            sys.exit(0)
+
+        # Secondary check: original parent PID no longer exists
         try:
             os.kill(ppid, 0)  # signal 0 = test existence
         except OSError:
@@ -187,12 +206,17 @@ def _handle_command(
             return _success_response(req_id, {"blocked": detected})
 
         if method == "captcha.emit_event":
-            event = CaptchaHandler.emit_captcha_event(params.get("target", ""))
+            handler = CaptchaHandler(db_path)
+            target = params.get("target", "")
+            # Persist a session state first so the state_id is real
+            state_id = handler.save_session_state(target=target)
+            event = CaptchaHandler.emit_captcha_event(target, state_id=state_id)
             # Write the event as a standalone JSON line BEFORE the response
             # so the Rust sidecar_command handler can buffer it as an
             # unsolicited event for the frontend to poll.
-            sys.stdout.write(json.dumps(event) + "\n")
-            sys.stdout.flush()
+            if event is not None:
+                sys.stdout.write(json.dumps(event) + "\n")
+                sys.stdout.flush()
             return _success_response(req_id, event)
 
         if method == "llm_settings.set":

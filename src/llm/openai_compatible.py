@@ -12,7 +12,7 @@ from typing import Any
 
 import httpx
 
-from src.llm.base import LLMProvider
+from src.llm.base import LLMProvider, strip_json_fences
 
 logger = logging.getLogger(__name__)
 
@@ -115,13 +115,7 @@ class OpenAICompatibleProvider(LLMProvider):
                 "Unexpected response structure from /chat/completions",
             ) from exc
 
-        # Strip optional markdown fences
-        cleaned = content.strip()
-        if cleaned.startswith("```"):
-            cleaned = cleaned.removeprefix("```json").removeprefix("```")
-            if "```" in cleaned:
-                cleaned = cleaned[: cleaned.rindex("```")]
-            cleaned = cleaned.strip()
+        cleaned = strip_json_fences(content)
 
         try:
             return dict(json.loads(cleaned))

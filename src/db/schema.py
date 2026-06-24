@@ -70,7 +70,6 @@ CREATE TABLE IF NOT EXISTS schema_version (
 );
 
 INSERT OR IGNORE INTO schema_version (version) VALUES (1);
-PRAGMA user_version = 1;
 """
 
 
