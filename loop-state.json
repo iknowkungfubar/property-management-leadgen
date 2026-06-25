@@ -1,35 +1,31 @@
 {
   "metadata": {
-    "session_id": "loop-001",
+    "session_id": "loop-002",
     "loop_iteration": 1,
     "loop_iterations_completed": 0,
-    "timestamp_utc": "2026-06-24T21:00:00Z"
+    "timestamp_utc": "2026-06-25T03:10:00Z"
   },
   "goal": {
-    "statement": "Make Property Management LeadGen production-ready for non-technical users — PyInstaller bundling, cross-platform installers, encrypted credentials, CI release pipeline, 65%+ coverage, zero Dependabot critical alerts.",
+    "statement": "Upgrade frontend build to Vite 8 + Tailwind CSS 4, redesign with modern styling, verify build and visual correctness.",
     "stopping_conditions": [
-      "uv run pytest tests/ -q --tb=no --exit-zero",
-      "ruff check src/ tests/ --exit-zero",
       "cd frontend && npm run build --exit-zero",
-      "cargo check --manifest-path src-tauri/Cargo.toml --exit-zero"
+      "ruff check src/ tests/ --exit-zero",
+      "no broken CSS classes in built output"
     ],
     "scope_boundaries": [
-      "Do NOT modify the IPC protocol wire format",
-      "Do NOT change the database schema without migration",
-      "Do NOT add external paid services (telemetry, monitoring)"
+      "Do NOT change any component logic or IPC code",
+      "Do NOT modify the HTML template structure",
+      "Do NOT change Python or Rust code"
     ]
   },
   "backlog": [
-    {"id": "P1", "title": "PyInstaller sidecar bundling", "description": "Test pyinstaller --onefile on src/main.py, verify binary works", "effort": "2h", "depends_on": []},
-    {"id": "P2", "title": "Tauri externalBin + tauri.conf.json", "description": "Configure tauri.conf.json for externalBin, update bundle settings", "effort": "1h", "depends_on": ["P1"]},
-    {"id": "P3", "title": "Keychain credential storage", "description": "Move API keys from SQLite plaintext to OS keychain (keyring lib)", "effort": "3h", "depends_on": []},
-    {"id": "P4", "title": "npm audit fixes", "description": "Fix 5 Dependabot alerts from npm deps", "effort": "1h", "depends_on": []},
-    {"id": "P5", "title": "Coverage improvements — county_assessor and csv_import", "description": "Add unit tests for county_assessor.py (18%) and csv_import.py (33%)", "effort": "2h", "depends_on": []},
-    {"id": "P6", "title": "Release CI pipeline", "description": "GitHub Actions release workflow building installers for all platforms", "effort": "3h", "depends_on": ["P2", "P4"]},
-    {"id": "P7", "title": "Frontend E2E smoke test", "description": "Playwright-based frontend integration test", "effort": "3h", "depends_on": []}
+    {"id": "V1", "title": "Upgrade packages + install @tailwindcss/vite", "description": "Bump vite to ^8, tailwindcss to ^4, add @tailwindcss/vite plugin", "effort": "15m", "depends_on": []},
+    {"id": "V2", "title": "Update build configs for Vite 8 + Tailwind 4", "description": "Update vite.config.js to use tailwindcss vite plugin, remove postcss/tailwind configs", "effort": "15m", "depends_on": ["V1"]},
+    {"id": "V3", "title": "Rewrite CSS for Tailwind 4 syntax", "description": "Replace @tailwind directives with @import, move custom theme to CSS @theme, verify build", "effort": "30m", "depends_on": ["V2"]},
+    {"id": "V4", "title": "Fix styling regressions from upgrade", "description": "Check rendered output, fix any broken utility classes, verify all components render correctly", "effort": "30m", "depends_on": ["V3"]}
   ],
   "history": [],
   "verifier_feedback": null,
   "exit_status": "IN_PROGRESS",
-  "next_steps": "Iteration 1: Test PyInstaller bundling"
+  "next_steps": "Iteration V1: Upgrade packages"
 }
