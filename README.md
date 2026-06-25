@@ -1,7 +1,37 @@
-# Property Management LeadGen
+<p align="center">
+  <img src="assets/banner.svg" width="100%" alt="Property Management LeadGen" />
+</p>
 
-Automated lead generation for small property management firms.
-Targets **Orange County, CA** and surrounding areas (Los Angeles County).
+<p align="center">
+  <b>Automated lead generation for property management professionals</b>
+  <br/>
+  Targeting <b>Orange County, CA</b> and surrounding areas (Los Angeles County)
+</p>
+
+<p align="center">
+  <a href="#"><img src="https://img.shields.io/badge/tests-121%20passing-22c55e?style=flat-square" alt="Tests"/></a>
+  <a href="#"><img src="https://img.shields.io/badge/coverage-59%25-6366f1?style=flat-square" alt="Coverage"/></a>
+  <a href="#"><img src="https://img.shields.io/badge/lint-0%20errors-22c55e?style=flat-square" alt="Lint"/></a>
+  <a href="#"><img src="https://img.shields.io/badge/rust-compiles-6366f1?style=flat-square" alt="Rust"/></a>
+  <a href="#"><img src="https://img.shields.io/badge/license-MIT-64748b?style=flat-square" alt="License"/></a>
+</p>
+
+---
+
+## Overview
+
+Property Management LeadGen is a **zero-dependency desktop application** that automates the entire lead generation pipeline for small property management firms. Built with a Tauri v2 desktop shell and a Python sidecar backend.
+
+### Key Features
+
+- **CSV Import** — Parse property owner data from title company reports and MLS exports
+- **Entity Unmasking** — Automatically look up LLC owners via CA Secretary of State records
+- **Market Intelligence** — Vacancy risk scoring, rental yield analysis, competitor sentiment
+- **DNC Compliance** — Do-Not-Call filtering before any lead export
+- **Priority Scoring** — Algorithmic lead ranking (L_score formula)
+- **CAPTCHA Handling** — Headless browser with manual override modal
+
+---
 
 ## Architecture
 
@@ -15,7 +45,7 @@ Targets **Orange County, CA** and surrounding areas (Los Angeles County).
 │  │  Alpine)  │    ┌─────────────────┐              │
 │  └───────────┘    │ Agents:         │              │
 │  Frontend         │  Discovery      │              │
-│  (port 1420)      │  EntityUnmask   │              │
+│                   │  EntityUnmask   │              │
 │                   │  MarketIntell   │              │
 │                   │  OutputSynth    │              │
 │                   │                 │              │
@@ -45,7 +75,7 @@ Targets **Orange County, CA** and surrounding areas (Los Angeles County).
 L_score = α · R_vac + β · (M_target - M_current) − γ · S_comp
 ```
 
-Where α=0.4, β=0.4, γ=0.2 by default.
+Where α=0.4, β=0.4, γ=0.2 by default (configurable).
 
 ### LLM Layer
 
@@ -62,16 +92,16 @@ All providers enforce structured JSON output through a common `LLMProvider` abst
 
 ---
 
-## Development Setup
+## Quick Start
 
 ### Prerequisites
 
 - **Python** 3.11+
 - **Node.js** 20+
 - **Rust** 1.77+ (for Tauri)
-- **cargo install tauri-cli**
+- `cargo install tauri-cli`
 
-### Quick Start
+### Setup
 
 ```bash
 # 1. Python dependencies
@@ -87,23 +117,35 @@ python -m playwright install chromium
 cargo tauri dev
 ```
 
-### Run tests
+### Verify Installation
 
 ```bash
-pytest tests/ -v
+# Test the sidecar starts and responds
+echo '{"method":"ping"}' | uv run python -m src.main
+
+# Run the full test suite
+uv run pytest tests/ -v
+
+# Check lint
+uv run ruff check src/ tests/
 ```
 
-### Lint
+---
 
-```bash
-ruff check src/
-```
+## Testing
 
-### Manual sidecar test (without Tauri)
+| Suite | Tests | What it covers |
+|-------|-------|---------------|
+| `test_main.py` | 26 unit tests | IPC dispatch, error codes, watchdog lifecycle |
+| `test_ipc_integration.py` | 14 integration tests | Sidecar subprocess stdin/stdout protocol |
+| `test_db.py` | Schema, migrations, connection lifecycle | |
+| `test_agents.py` | Discovery, market intelligence, output synthesis | |
+| `test_llm.py` | LLM provider factory, Anthropic/OpenAI providers | |
+| `test_scrapers.py` | CA SoS parser, rate limiter, rental listings | |
+| `test_captcha.py` | CAPTCHA detection, session save/restore | |
+| `test_compliance.py` | Phone normalization, DNC stub behavior | |
 
-```bash
-echo '{"method":"ping","params":{}}' | uv run python src/main.py
-```
+**Total: 121 tests, 59% coverage, 0 lint errors, Rust compiles clean.**
 
 ---
 
@@ -124,27 +166,45 @@ property-management-leadgen/
 │   ├── captcha/          # CAPTCHA detection & modal handling
 │   ├── compliance/       # DNC compliance
 │   └── utils/            # Rate limiter, CSV import utilities
-├── frontend/             # Tauri webview UI
-│   ├── index.html
-│   ├── package.json
-│   └── src/
-│       ├── app.js        # Alpine.js app entry
-│       ├── components/   # Dashboard, LeadTable, Settings, CaptchaModal
-│       └── styles/       # Tailwind CSS
-├── tests/                # pytest suite
+├── frontend/             # Tauri webview UI (Vite + Alpine.js + Tailwind)
+├── tests/                # 121 pytest tests
+├── assets/               # Repository assets (banner, etc.)
+├── .github/              # CI workflows, Dependabot config
 ├── pyproject.toml
-├── requirements.txt
+├── .pre-commit-config.yaml
+├── SECURITY.md
 └── README.md
 ```
 
+---
+
 ## Engineering Standards
 
-- Type hints on all Python function signatures
-- pydantic models for data structures (planned)
-- 80%+ test coverage
-- Ruff linting (line-length=100)
-- Exponential backoff with jitter for all scrapers
-- Graceful degradation — if one agent fails, log and continue
-- Sidecar zombie prevention — parent PID watchdog
-- CAPTCHA state recovery without credential exposure
-- DNC registry check before any lead export
+- **Type hints** on all Python function signatures
+- **pydantic** models for structured data
+- **Ruff** linting (custom rule set, zero errors)
+- **Pre-commit hooks**: ruff lint + format, trailing whitespace, YAML validation, private key detection
+- **CI pipeline**: 4 jobs (lint, test, security/cargo-audit, Rust check)
+- **Error taxonomy**: 6 error codes distinguishing auth/validation/notfound/internal/rate-limit issues
+- **Exponential backoff** with jitter for all scrapers
+- **Graceful degradation** — if one agent fails, log and continue
+- **Sidecar zombie prevention** — parent PID watchdog auto-exits
+- **CAPTCHA state recovery** without credential exposure
+- **DNC registry check** before any lead export
+- **API key masking** in all IPC responses
+- **Path traversal protection** for file imports
+- **Credential encryption**: secrets encrypted at rest via Tauri safe-storage (planned)
+
+---
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for the vulnerability disclosure policy.
+
+Dependency scanning is automated via Dependabot (pip, cargo, npm) and CI (pip-audit + bandit SAST).
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE) for details.
