@@ -69,8 +69,9 @@ export function settingsPanel() {
         model: this.model,
       };
 
-      // Persist to localStorage for dev resilience
-      localStorage.setItem("leadgen_llm_settings", JSON.stringify(payload));
+      // Persist to localStorage for dev resilience (key is masked)
+      const maskedPayload = { ...payload, api_key: this.apiKey ? this.apiKey.slice(0, 4) + "****" : "" };
+      localStorage.setItem("leadgen_llm_settings", JSON.stringify(maskedPayload));
 
       try {
         const ipc = Alpine.store("ipc");
