@@ -37,6 +37,11 @@ from src.utils.credentials import (
     migrate_from_sqlite,
     store_credential,
 )
+from src.utils.hubspot_client import (
+    HubSpotAuthError,
+    HubSpotClient,
+    HubSpotRateLimitError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -236,6 +241,45 @@ def _handle_command(
             leads = params.get("leads", [])
             json_output = agent.format_lead_export(leads, export_format="json")
             return _success_response(req_id, {"json": json_output})
+
+        if method == "output.export_hubspot":
+            # Read HubSpot API key from settings
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = 'hubspot_api_key'",
+            ).fetchone()
+            api_key: str = (row["value"] if row else "") or ""
+            if not api_key:
+                return _error_response(
+                    req_id,
+                    "HubSpot API key not configured — set hubspot_api_key in settings",
+                    ERR_VALIDATION,
+                )
+
+            hubspot_client = HubSpotClient(api_key)
+            agent = OutputSynthesisAgent(hubspot_client=hubspot_client)
+            leads = params.get("leads", [])
+            if not leads:
+                return _error_response(req_id, "Missing leads parameter", ERR_VALIDATION)
+
+            try:
+                result = agent.export_to_hubspot(leads)
+                return _success_response(req_id, result)
+            except HubSpotAuthError as exc:
+                return _error_response(
+                    req_id,
+                    f"HubSpot authentication failed: {exc}",
+                    ERR_AUTH,
+                )
+            except HubSpotRateLimitError as exc:
+                return _error_response(
+                    req_id,
+                    f"HubSpot rate limit exceeded: {exc}",
+                    ERR_RATELIMIT,
+                )
+            except ValueError as exc:
+                return _error_response(req_id, str(exc), ERR_VALIDATION)
+            finally:
+                hubspot_client.close()
 
         if method == "compliance.dnc_check":
             phone = params.get("phone", "")

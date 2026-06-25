@@ -110,6 +110,8 @@ def apply_schema(conn: sqlite3.Connection) -> None:
         ("default_alpha", "0.4"),
         ("default_beta", "0.4"),
         ("default_gamma", "0.2"),
+        ("hubspot_api_key", ""),
+        ("hubspot_enabled", "false"),
     ]
     conn.executemany(
         "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",

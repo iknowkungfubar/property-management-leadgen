@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+from unittest.mock import Mock
+
 import pytest
 
 from src.agents.discovery import DiscoveryAgent
 from src.agents.entity_unmasking import EntityUnmaskingAgent
 from src.agents.market_intelligence import MarketIntelligenceAgent
 from src.agents.output_synthesis import OutputSynthesisAgent
+from src.utils.hubspot_client import (
+    HubSpotAuthError,
+    HubSpotClient,
+    HubSpotRateLimitError,
+)
 
 # ── Discovery Agent ─────────────────────────────────────────────────
 
@@ -197,3 +204,145 @@ class TestOutputSynthesisAgent:
         agent = OutputSynthesisAgent()
         with pytest.raises(ValueError, match="Unsupported export format"):
             agent.format_lead_export([], export_format="xml")
+
+
+# ── HubSpot CRM Export ──────────────────────────────────────────────
+
+
+class TestOutputSynthesisHubSpotExport:
+    """HubSpot CRM export via OutputSynthesisAgent."""
+
+    @staticmethod
+    def test_export_no_hubspot_client_raises() -> None:
+        """Without a hubspot_client, export_to_hubspot raises ValueError."""
+        agent = OutputSynthesisAgent()
+        with pytest.raises(ValueError, match="HubSpot client is not configured"):
+            agent.export_to_hubspot([{"apn": "936-193-14"}])
+
+    @staticmethod
+    def test_export_empty_leads() -> None:
+        """Empty leads should return empty result without API call."""
+        mock_client = Mock(spec=HubSpotClient)
+        agent = OutputSynthesisAgent(hubspot_client=mock_client)
+        result = agent.export_to_hubspot([])
+        assert result == {"total": 0, "succeeded": [], "failed": [], "errors": []}
+        mock_client.batch_upsert.assert_not_called()
+
+    @staticmethod
+    def test_export_no_emails_skips() -> None:
+        """Leads without email addresses are skipped."""
+        mock_client = Mock(spec=HubSpotClient)
+        agent = OutputSynthesisAgent(hubspot_client=mock_client)
+        leads = [
+            {"apn": "936-193-14", "property_address": "123 Main St"},
+        ]
+        result = agent.export_to_hubspot(leads)
+        assert result == {"total": 0, "succeeded": [], "failed": [], "errors": []}
+        mock_client.batch_upsert.assert_not_called()
+
+    @staticmethod
+    def test_export_calls_batch_upsert() -> None:
+        """Leads with emails should be mapped and sent to batch_upsert."""
+        mock_client = Mock(spec=HubSpotClient)
+        mock_client.batch_upsert.return_value = {
+            "total": 2,
+            "succeeded": ["12345", "67890"],
+            "failed": [],
+            "errors": [],
+        }
+        agent = OutputSynthesisAgent(hubspot_client=mock_client)
+        leads = [
+            {
+                "apn": "936-193-14",
+                "county": "Orange County",
+                "property_address": "123 Main St",
+                "recorded_owner": "ABC Properties LLC",
+                "unmasked_principal_name": "John Smith",
+                "unmasked_principal_phone": "949-555-1234",
+                "unmasked_principal_email": "john@example.com",
+                "priority_score": 0.85,
+            },
+            {
+                "apn": "430-121-07",
+                "county": "Orange County",
+                "property_address": "456 Oak Ave",
+                "recorded_owner": "Jane Doe",
+                "unmasked_principal_name": "Jane Doe",
+                "unmasked_principal_phone": "714-555-5678",
+                "unmasked_principal_email": "jane@example.com",
+                "priority_score": 0.42,
+            },
+        ]
+        result = agent.export_to_hubspot(leads)
+
+        assert result["total"] == 2
+        assert result["succeeded"] == ["12345", "67890"]
+        mock_client.batch_upsert.assert_called_once()
+
+        # Verify the contacts passed to batch_upsert
+        call_args = mock_client.batch_upsert.call_args[0][0]
+        assert len(call_args) == 2
+        assert call_args[0]["email"] == "john@example.com"
+        assert call_args[1]["email"] == "jane@example.com"
+        # Check field mapping
+        assert "hs_lead_score" in call_args[0]
+        assert call_args[0]["hs_lead_score"] == "0.85"
+        assert call_args[0]["address"] == "123 Main St"
+
+    @staticmethod
+    def test_export_deduplicates_before_sending() -> None:
+        """Duplicate APNs should be deduplicated before API call."""
+        mock_client = Mock(spec=HubSpotClient)
+        mock_client.batch_upsert.return_value = {
+            "total": 1,
+            "succeeded": ["12345"],
+            "failed": [],
+            "errors": [],
+        }
+        agent = OutputSynthesisAgent(hubspot_client=mock_client)
+        leads = [
+            {
+                "apn": "936-193-14",
+                "unmasked_principal_email": "john@example.com",
+                "unmasked_principal_name": "John Smith",
+            },
+            {
+                "apn": "936-193-14",
+                "unmasked_principal_email": "john@example.com",
+                "unmasked_principal_name": "John Updated",
+            },
+        ]
+        result = agent.export_to_hubspot(leads)
+        assert result["total"] == 1
+        call_args = mock_client.batch_upsert.call_args[0][0]
+        assert call_args[0]["firstname"] == "John Updated"  # Last wins
+
+    @staticmethod
+    def test_export_handles_hubspot_auth_error() -> None:
+        """HubSpotAuthError propagates."""
+        mock_client = Mock(spec=HubSpotClient)
+        mock_client.batch_upsert.side_effect = HubSpotAuthError("Invalid token")
+        agent = OutputSynthesisAgent(hubspot_client=mock_client)
+        leads = [
+            {
+                "apn": "936-193-14",
+                "unmasked_principal_email": "john@example.com",
+            },
+        ]
+        with pytest.raises(HubSpotAuthError, match="Invalid token"):
+            agent.export_to_hubspot(leads)
+
+    @staticmethod
+    def test_export_handles_hubspot_rate_limit_error() -> None:
+        """HubSpotRateLimitError propagates."""
+        mock_client = Mock(spec=HubSpotClient)
+        mock_client.batch_upsert.side_effect = HubSpotRateLimitError("Rate limited")
+        agent = OutputSynthesisAgent(hubspot_client=mock_client)
+        leads = [
+            {
+                "apn": "936-193-14",
+                "unmasked_principal_email": "john@example.com",
+            },
+        ]
+        with pytest.raises(HubSpotRateLimitError, match="Rate limited"):
+            agent.export_to_hubspot(leads)
