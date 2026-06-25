@@ -142,3 +142,146 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #64748b;
 }
+
+/* ── Skeleton loading animation ──────────────────────────────────── */
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.2; }
+}
+
+.skeleton {
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+  background: var(--color-slate-700);
+  border-radius: var(--radius-lg);
+}
+
+/* ── Notification variants ──────────────────────────────────────── */
+
+.notification-card {
+  border-left-width: 3px;
+  border-left-style: solid;
+}
+
+.notification-success {
+  border-left-color: var(--color-emerald-500);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-emerald-500) 8%, var(--color-slate-800)), var(--color-slate-800));
+}
+.notification-success .notification-icon {
+  color: var(--color-emerald-400);
+}
+
+.notification-error {
+  border-left-color: var(--color-red-500);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-red-500) 8%, var(--color-slate-800)), var(--color-slate-800));
+}
+.notification-error .notification-icon {
+  color: var(--color-red-400);
+}
+
+.notification-warning {
+  border-left-color: var(--color-amber-500);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-amber-500) 8%, var(--color-slate-800)), var(--color-slate-800));
+}
+.notification-warning .notification-icon {
+  color: var(--color-amber-400);
+}
+
+.notification-info {
+  border-left-color: var(--color-blue-500);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-blue-500) 8%, var(--color-slate-800)), var(--color-slate-800));
+}
+.notification-info .notification-icon {
+  color: var(--color-blue-400);
+}
+
+/* ── Slide animations for notifications ─────────────────────────── */
+
+@keyframes slide-in-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slide-out-right {
+  from { transform: translateX(0); opacity: 1; }
+  to   { transform: translateX(100%); opacity: 0; }
+}
+
+/* ── Progress bar ───────────────────────────────────────────────── */
+
+.progress-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-slate-700);
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--color-brand-500), var(--color-sky-400));
+  transition: width 0.5s ease;
+}
+
+/* ── Status dot indicators ──────────────────────────────────────── */
+
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+.status-dot-idle   { background: var(--color-slate-500); }
+.status-dot-running { background: var(--color-amber-400); animation: dot-pulse 1s ease-in-out infinite; }
+.status-dot-done   { background: var(--color-emerald-400); }
+.status-dot-error  { background: var(--color-red-400); }
+
+@keyframes dot-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.6; transform: scale(1.3); }
+}
+
+/* ── Gradient accent card ───────────────────────────────────────── */
+
+.card-accent {
+  position: relative;
+  overflow: hidden;
+}
+.card-accent::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--color-brand-500), var(--color-sky-400));
+}
+
+/* ── KPI card icon circle ───────────────────────────────────────── */
+
+.kpi-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-lg);
+}
+
+/* ── Sidebar transition ─────────────────────────────────────────── */
+
+.sidebar-mobile {
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+@media (max-width: 768px) {
+  .sidebar-desktop {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    transform: translateX(-100%);
+  }
+  .sidebar-desktop.open {
+    transform: translateX(0);
+  }
+}

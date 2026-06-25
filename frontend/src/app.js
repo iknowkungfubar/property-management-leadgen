@@ -2,7 +2,7 @@
  * Main Alpine.js application.
  *
  * Provides the top-level `app()` component with routing, IPC helpers,
- * error handling, first-run detection, and shared state.
+ * notification system, keyboard shortcuts, sidebar state, and activity feed.
  */
 
 import Alpine from "alpinejs";
@@ -12,7 +12,6 @@ import { captchaModal } from "./components/CaptchaModal.js";
 import { settingsPanel } from "./components/Settings.js";
 
 /* ── Error message catalogue ───────────────────────────────────────── */
-
 
 const ERROR_MESSAGES = {
   "-10000": {
@@ -53,7 +52,11 @@ function formatError(err) {
     return { title: "Error", detail: err, action: null };
   }
   const code = String(err.code || -40000);
-  return ERROR_MESSAGES[code] || { title: "Error", detail: err.message || "Unknown error", action: null };
+  return ERROR_MESSAGES[code] || {
+    title: "Error",
+    detail: err.message || "Unknown error",
+    action: null,
+  };
 }
 
 
@@ -98,6 +101,34 @@ function mockIpc(method, _params) {
 }
 
 
+/* ── Keyboard shortcuts ───────────────────────────────────────────── */
+
+const SHORTCUTS = {
+  "d": "dashboard",
+  "l": "leads",
+  ",": "settings",
+};
+
+function handleKeyboard(e, navFn) {
+  if (!(e.ctrlKey || e.metaKey)) return;
+  const view = SHORTCUTS[e.key];
+  if (view) {
+    e.preventDefault();
+    navFn(view);
+  }
+}
+
+
+/* ── Notification helpers ─────────────────────────────────────────── */
+
+let _notificationId = 0;
+
+function nextNotifId() {
+  _notificationId += 1;
+  return _notificationId;
+}
+
+
 /* ── Main Alpine component ────────────────────────────────────────── */
 
 function app() {
@@ -109,9 +140,24 @@ function app() {
     hasSidecar: false,
     captchaEvent: null,
     _pollTimer: null,
-    notification: null,
+
+    /* Notification stack */
+    notifications: [],
+
+    /* Setup hint */
     showSetupHint: false,
     hasLLMProvider: false,
+
+    /* Sidebar */
+    sidebarOpen: false,
+
+    /* Loading / skeleton */
+    isLoading: false,
+
+    /* Activity feed */
+    activityFeed: [],
+
+    /* Agent status */
     status: {
       discovery: "idle",
       unmasking: "idle",
@@ -122,9 +168,21 @@ function app() {
       leadsFound: 0,
       leadsUnmasked: 0,
       leadsScored: 0,
+      leadsExported: 0,
     },
 
-    // ── Lifecycle ──────────────────────────────────────────────────
+    /* ── Computed helpers (called from template) ─────────────────── */
+
+    sortedActivity() {
+      return [...this.activityFeed].slice(-20).reverse();
+    },
+
+    totalLeads() {
+      return this.leads.length || this.progress.leadsFound || 0;
+    },
+
+    /* ── Lifecycle ────────────────────────────────────────────────── */
+
     async init() {
       Alpine.store("ipc", { send: this._safeIpc.bind(this) });
       Alpine.store("app", this);
@@ -133,24 +191,29 @@ function app() {
         this.captchaEvent = e.detail;
       });
 
-      // Probe the sidecar
+      /* Keyboard shortcut listener */
+      this._keyHandler = (e) => handleKeyboard(e, this.navigateTo.bind(this));
+      document.addEventListener("keydown", this._keyHandler);
+
+      /* Probe the sidecar */
       try {
         await ipc("ping");
         this.hasSidecar = true;
+        this.addActivity("system", "Sidecar connected");
         console.log("[LeadGen] Sidecar connection OK");
       } catch {
         this.hasSidecar = false;
         console.warn("[LeadGen] Sidecar not reachable — dev mock active");
       }
 
-      // First-run detection: check if settings exist
+      /* First-run detection */
       if (this.hasSidecar) {
         await this._checkFirstRun();
       } else {
         this.showSetupHint = true;
       }
 
-      // Poll for sidecar events
+      /* Poll for sidecar events */
       if (IS_TAURI) {
         const pollEvents = async () => {
           try {
@@ -163,7 +226,7 @@ function app() {
               }
             }
           } catch {
-            // Polling not supported yet
+            /* polling not supported yet */
           }
         };
         this._pollTimer = setInterval(pollEvents, 2000);
@@ -175,9 +238,13 @@ function app() {
         clearInterval(this._pollTimer);
         this._pollTimer = null;
       }
+      if (this._keyHandler) {
+        document.removeEventListener("keydown", this._keyHandler);
+        this._keyHandler = null;
+      }
     },
 
-    // ── First-run & health checks ──────────────────────────────────
+    /* ── First-run & health checks ────────────────────────────────── */
 
     async _checkFirstRun() {
       try {
@@ -186,9 +253,9 @@ function app() {
           this.showSetupHint = true;
         }
 
-        // Check if any LLM provider is configured
         const providers = await ipc("llm_settings.get", {});
-        this.hasLLMProvider = Array.isArray(providers) && providers.some(p => p.api_key !== "****" && p.api_key !== "");
+        this.hasLLMProvider = Array.isArray(providers) &&
+          providers.some((p) => p.api_key !== "****" && p.api_key !== "");
       } catch {
         this.showSetupHint = true;
       }
@@ -198,7 +265,70 @@ function app() {
       this.showSetupHint = false;
     },
 
-    // ── Safe IPC with error handling ───────────────────────────────
+    /* ── Notification system ──────────────────────────────────────── */
+
+    addNotification(type, title, detail, action) {
+      const id = nextNotifId();
+      this.notifications.push({
+        id,
+        type: type || "info",
+        title,
+        detail: detail || "",
+        action: action || null,
+        timestamp: new Date().toLocaleTimeString(),
+      });
+
+      /* Auto-dismiss after 6 seconds */
+      setTimeout(() => {
+        this.dismissNotification(id);
+      }, 6000);
+
+      /* Keep at most 6 visible */
+      if (this.notifications.length > 6) {
+        this.notifications.shift();
+      }
+    },
+
+    notifySuccess(title, detail) {
+      this.addNotification("success", title, detail);
+    },
+
+    notifyError(title, detail) {
+      this.addNotification("error", title, detail);
+    },
+
+    notifyWarning(title, detail) {
+      this.addNotification("warning", title, detail);
+    },
+
+    notifyInfo(title, detail) {
+      this.addNotification("info", title, detail);
+    },
+
+    dismissNotification(id) {
+      const idx = this.notifications.findIndex((n) => n.id === id);
+      if (idx !== -1) {
+        this.notifications.splice(idx, 1);
+      }
+    },
+
+    /* ── Activity feed ────────────────────────────────────────────── */
+
+    addActivity(action, detail) {
+      this.activityFeed.push({
+        id: nextNotifId(),
+        action,
+        detail: detail || "",
+        timestamp: new Date().toLocaleTimeString(),
+        iso: new Date().toISOString(),
+      });
+      /* Keep last 100 entries */
+      if (this.activityFeed.length > 100) {
+        this.activityFeed.splice(0, this.activityFeed.length - 100);
+      }
+    },
+
+    /* ── Safe IPC with error handling ─────────────────────────────── */
 
     async _safeIpc(method, params = {}) {
       try {
@@ -211,40 +341,48 @@ function app() {
 
     showError(err) {
       const formatted = formatError(err);
-      this.notification = {
-        ...formatted,
-        id: Date.now(),
-        timestamp: new Date().toLocaleTimeString(),
-      };
-      // Auto-dismiss after 8 seconds
-      setTimeout(() => {
-        if (this.notification && this.notification.id === formatted.id) {
-          this.notification = null;
-        }
-      }, 8000);
+      this.notifyError(formatted.title, formatted.detail);
     },
 
-    dismissNotification() {
-      this.notification = null;
+    /* ── Sidebar ──────────────────────────────────────────────────── */
+
+    toggleSidebar() {
+      this.sidebarOpen = !this.sidebarOpen;
     },
+
+    closeSidebar() {
+      this.sidebarOpen = false;
+    },
+
+    /* ── Navigation ───────────────────────────────────────────────── */
 
     navigateTo(view) {
       this.currentView = view;
+      this.closeSidebar();
+
       if (view === "settings") {
-        // Re-check LLM status when opening settings
         this._checkFirstRun();
       }
     },
 
-    // ── Actions ────────────────────────────────────────────────────
+    viewDashboard() { this.navigateTo("dashboard"); },
+    viewLeads() { this.navigateTo("leads"); },
+    viewSettings() { this.navigateTo("settings"); },
+
+    /* ── Actions ──────────────────────────────────────────────────── */
+
     async startSearch() {
       this.isProcessing = true;
+      this.isLoading = true;
       this.status.discovery = "running";
+      this.addActivity("search", `Starting search in target area…`);
     },
 
     stopSearch() {
       this.isProcessing = false;
+      this.isLoading = false;
       this.status.discovery = "idle";
+      this.addActivity("stop", "Search stopped by user");
     },
 
     async resumeAutomation() {
@@ -256,11 +394,6 @@ function app() {
       this.captchaEvent = null;
       console.log("[LeadGen] Skipping current lead.");
     },
-
-    // ── Navigation ─────────────────────────────────────────────────
-    viewDashboard() { this.navigateTo("dashboard"); },
-    viewLeads() { this.navigateTo("leads"); },
-    viewSettings() { this.navigateTo("settings"); },
   };
 }
 
