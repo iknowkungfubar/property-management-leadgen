@@ -189,6 +189,7 @@ fn sidecar_health(state: State<'_, SidecarState>) -> bool {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
         .manage(SidecarState {
             inner: Mutex::new(None),

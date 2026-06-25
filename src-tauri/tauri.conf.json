@@ -52,6 +52,14 @@
           "args": true
         }
       ]
+    },
+    "updater": {
+      "active": true,
+      "dialog": true,
+      "endpoints": [
+        "https://github.com/iknowkungfubar/property-management-leadgen/releases/latest/download/updater.json"
+      ],
+      "pubkey": ""
     }
   }
 }

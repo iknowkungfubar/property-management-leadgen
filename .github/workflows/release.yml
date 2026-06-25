@@ -1,0 +1,124 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  PYTHON_VERSION: "3.13"
+  NODE_VERSION: "20"
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            bundle_name: LeadGen-x86_64.AppImage
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            bundle_name: LeadGen-aarch64.dmg
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundle_name: LeadGen-x86_64.msi
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Rust
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      # Python + sidecar build
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install Python deps
+        run: pip install pyinstaller
+      - name: Build sidecar (PyInstaller)
+        run: |
+          pip install -r requirements.txt
+          pyinstaller --onedir --name python-sidecar --collect-all src --hidden-import usaddress runner.py
+
+      # Frontend
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Build frontend
+        run: |
+          cd frontend && npm ci && npm run build
+
+      # Tauri CLI
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli
+
+      # Build for Linux
+      - name: Build Tauri (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo tauri build --manifest-path src-tauri/Cargo.toml
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      # Build for macOS (notarized)
+      - name: Build Tauri (macOS)
+        if: matrix.os == 'macos-latest'
+        run: cargo tauri build --manifest-path src-tauri/Cargo.toml
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      # Build for Windows
+      - name: Build Tauri (Windows)
+        if: matrix.os == 'windows-latest'
+        run: cargo tauri build --manifest-path src-tauri/Cargo.toml
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      # Upload installer
+      - name: Upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.bundle_name }}
+          path: src-tauri/target/release/bundle/**/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Generate release notes
+        run: |
+          echo "## Property Management LeadGen ${{ github.ref_name }}" > release-notes.md
+          echo "" >> release-notes.md
+          echo "### Downloads" >> release-notes.md
+          echo "" >> release-notes.md
+          for f in artifacts/*/*; do
+            name=$(basename "$f")
+            size=$(du -h "$f" | cut -f1)
+            echo "- \`$name\` ($size)" >> release-notes.md
+          done
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release-notes.md
+          files: |
+            artifacts/**/*
+          generate_release_notes: true
