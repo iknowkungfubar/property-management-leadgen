@@ -1,0 +1,61 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# docker-compose.yml — leadgen-sidecar (headless Python sidecar)
+#
+# Start the sidecar in interactive mode (stdin/stdout IPC):
+#   docker compose up -d
+#   echo '{"id":"1","method":"ping","params":{}}' | docker compose exec -T leadgen-sidecar python3 -c "
+#      import sys, json
+#      line = sys.stdin.readline()
+#      print(json.loads(line))"
+#
+# Or attach stdin/stdout directly:
+#   docker compose run --rm leadgen-sidecar
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  leadgen-sidecar:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: leadgen-sidecar:latest
+
+    # ── Interactive IPC ──────────────────────────────────────────────────
+    # The sidecar reads JSON-RPC commands from stdin and writes responses
+    # to stdout.  `stdin_open: true` keeps stdin attached so callers can
+    # pipe commands into the container.
+    stdin_open: true
+    tty: true
+
+    # ── Volume mounts ────────────────────────────────────────────────────
+    volumes:
+      # Persist the SQLite database on the host so data survives container
+      # restarts.  Maps to ~/.leadgen on the host, which is the default
+      # location the sidecar looks for (overridable via LEADGEN_DB_PATH).
+      - "~/.leadgen:/home/leadgen/.leadgen"
+
+      # Mount a host directory for CSV imports so the DiscoveryAgent can
+      # read files placed on the host filesystem.
+      - "~/imports:/imports:ro"
+
+    # ── LLM Configuration ────────────────────────────────────────────────
+    # These environment variables can be used to bootstrap LLM provider
+    # settings without the Settings UI.  The sidecar stores them in the
+    # SQLite `llm_settings` table at startup; values set here override
+    # defaults.
+    #
+    # Set only the variables your chosen provider needs.
+    environment:
+      # Uncomment the variables for your LLM provider:
+      # ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      # ANTHROPIC_MODEL: "claude-sonnet-4-20250514"
+      LEADGEN_DB_PATH: "/home/leadgen/.leadgen/leadgen.db"
+
+    # ── Healthcheck (inherited from Dockerfile) ──────────────────────────
+    healthcheck:
+      test: pgrep -f "python.*runner" > /dev/null 2>&1 || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+    restart: unless-stopped

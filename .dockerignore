@@ -1,0 +1,50 @@
+# ── Python ──────────────────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# ── Node / frontend ─────────────────────────────────────────────────────────
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# ── Rust / Tauri (not needed by the Python sidecar) ────────────────────────
+src-tauri/target/
+src-tauri/node_modules/
+
+# ── Version control ─────────────────────────────────────────────────────────
+.git/
+.gitignore
+
+# ── IDE and editor files ───────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS metadata ────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Data / database files (mount via volume instead) ───────────────────────
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+leadgen.db
+
+# ── Application-specific ───────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+logs/
+data/
