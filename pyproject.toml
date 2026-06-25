@@ -30,6 +30,8 @@ target-version = "py311"
 select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "ARG", "RUF100", "TRY", "PTH", "PT", "PLC", "PLE", "RET", "SLF"]
 ignore = [
     "S101",
+    "SIM102",
+    "SIM108",
     "TRY300",
     "ANN401",
     "TRY400",
