@@ -22,7 +22,12 @@ from src.agents.entity_unmasking import EntityUnmaskingAgent
 from src.agents.market_intelligence import MarketIntelligenceAgent
 from src.agents.output_synthesis import OutputSynthesisAgent
 from src.captcha.handler import CaptchaHandler
-from src.compliance.dnc_checker import check_dnc
+from src.compliance.dnc_checker import (
+    DNCConfig,
+    add_dnc_number,
+    check_dnc,
+    remove_dnc_number,
+)
 from src.db.connection import get_connection
 from src.db.migrations import run_migrations
 from src.db.schema import apply_schema
@@ -99,6 +104,21 @@ def _start_parent_watchdog() -> None:
         )
         thread.start()
         logger.debug("Parent watchdog started for PID %d", ppid)
+
+
+def _get_dnc_config(conn) -> DNCConfig:
+    """Read DNC configuration from the settings table."""
+    row = conn.execute(
+        "SELECT value FROM settings WHERE key = 'dnc_blocked_area_codes'",
+    ).fetchone()
+    area_codes = []
+    if row and row[0]:
+        area_codes = [c.strip() for c in row[0].split(",") if c.strip()]
+    return DNCConfig(
+        enabled=True,
+        area_codes=area_codes,
+        block_international=True,
+    )
 
 
 # ── IPC dispatcher ────────────────────────────────────────────────────
@@ -220,9 +240,31 @@ def _handle_command(
         if method == "compliance.dnc_check":
             phone = params.get("phone", "")
             if not phone:
-                return _error_response(req_id, "Missing phone", ERR_VALIDATION)
-            is_dnc = check_dnc(phone)
-            return _success_response(req_id, {"is_dnc": is_dnc})
+                return _error_response(req_id, "Missing 'phone' parameter", ERR_VALIDATION)
+            is_dnc = check_dnc(phone, db_conn=conn)
+            config = _get_dnc_config(conn)
+            return _success_response(
+                req_id,
+                {
+                    "is_dnc": is_dnc,
+                    "enabled": config.enabled,
+                },
+            )
+
+        if method == "compliance.add_dnc":
+            phone = params.get("phone", "")
+            source = params.get("source", "manual")
+            if not phone:
+                return _error_response(req_id, "Missing 'phone' parameter", ERR_VALIDATION)
+            added = add_dnc_number(conn, phone, source)
+            return _success_response(req_id, {"added": added})
+
+        if method == "compliance.remove_dnc":
+            phone = params.get("phone", "")
+            if not phone:
+                return _error_response(req_id, "Missing 'phone' parameter", ERR_VALIDATION)
+            removed = remove_dnc_number(conn, phone)
+            return _success_response(req_id, {"removed": removed})
 
         if method == "captcha.detect":
             handler = CaptchaHandler(_db_conn)

@@ -69,6 +69,12 @@ CREATE TABLE IF NOT EXISTS schema_version (
     version INTEGER PRIMARY KEY
 );
 
+CREATE TABLE IF NOT EXISTS dnc_list (
+    phone TEXT PRIMARY KEY,
+    added_at TEXT DEFAULT (datetime('now')),
+    source TEXT DEFAULT 'manual'
+);
+
 INSERT OR IGNORE INTO schema_version (version) VALUES (1);
 """
 
