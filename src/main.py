@@ -12,8 +12,10 @@ from __future__ import annotations
 import json
 import logging
 import os
+import signal
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +44,7 @@ from src.utils.hubspot_client import (
     HubSpotClient,
     HubSpotRateLimitError,
 )
+from src.utils.logging import setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +63,9 @@ ERR_UNKNOWN_METHOD: int = -60000
 
 _db_conn: Any = None
 """Module-level persistent database connection. Set once in main()."""
+
+_start_time: float = 0.0
+"""Timestamp (monotonic clock) when the sidecar started. Used for health checks."""
 
 
 # ── Parent watchdog ──────────────────────────────────────────────────
@@ -168,6 +174,30 @@ def _handle_command(
     try:
         if method == "ping":
             return _success_response(req_id, {"pong": True})
+
+        if method == "system.health":
+            db_size_kb: int = 0
+            leads_count: int = 0
+            db_path = Path(
+                os.environ.get(
+                    "LEADGEN_DB_PATH",
+                    str(Path.home() / ".leadgen" / "leadgen.db"),
+                ),
+            )
+            if db_path.exists():
+                db_size_kb = db_path.stat().st_size // 1024
+            if _db_conn is not None:
+                leads_count = _db_conn.execute("SELECT COUNT(*) FROM properties").fetchone()[0]
+            return _success_response(
+                req_id,
+                {
+                    "status": "ok",
+                    "uptime_seconds": int(time.time() - _start_time),
+                    "version": "0.1.0",
+                    "db_size_kb": db_size_kb,
+                    "leads_count": leads_count,
+                },
+            )
 
         if method == "schema.apply":
             apply_schema(conn)
@@ -402,6 +432,24 @@ def _handle_command(
         return _error_response(req_id, str(exc), ERR_INTERNAL)
 
 
+# ── Signal handlers ───────────────────────────────────────────────────
+
+
+def _handle_signal(signum: int, _frame: object) -> None:
+    """Flush logs and exit cleanly on SIGTERM / SIGINT."""
+    sig_name = signal.Signals(signum).name
+    logger.info("Received %s — shutting down sidecar.", sig_name)
+    logging.shutdown()
+    sys.exit(0)
+
+
+def _register_signal_handlers() -> None:
+    """Register graceful shutdown handlers for termination signals."""
+    signal.signal(signal.SIGTERM, _handle_signal)
+    signal.signal(signal.SIGINT, _handle_signal)
+    logger.debug("Signal handlers registered (SIGTERM, SIGINT).")
+
+
 # ── Main loop ─────────────────────────────────────────────────────────
 
 
@@ -413,13 +461,15 @@ def main() -> None:
     process is killed.
 
     """
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        stream=sys.stderr,
-    )
+    global _db_conn, _start_time
+
+    _start_time = time.time()
+
+    # Configure structured JSON logging (with rotation and crash recovery).
+    setup_logging(level=logging.INFO, json_format=True)
     logger.info("Sidecar starting (PID %d)", os.getpid())
 
+    _register_signal_handlers()
     _start_parent_watchdog()
 
     db_path = os.environ.get(
@@ -428,7 +478,6 @@ def main() -> None:
     )
 
     # Ensure the database and schema exist up front
-    global _db_conn
     _db_conn = get_connection(db_path)
     apply_schema(_db_conn)
     run_migrations(_db_conn)
@@ -466,4 +515,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as exc:
+        logger.exception("Unhandled exception in main(): %s", exc)
+        sys.exit(1)

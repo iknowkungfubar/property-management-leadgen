@@ -16,6 +16,7 @@ dependencies = [
     "pyinstaller>=6.21.0",
     "keyring>=25.7.0",
     "pillow>=12.2.0",
+    "python-json-logger>=3.2.1",
 ]
 
 [project.scripts]
@@ -31,6 +32,7 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "ARG", "RUF100", "TRY", "PT
 ignore = [
     "S101",
     "SIM102",
+    "SIM105",
     "SIM108",
     "TRY300",
     "ANN401",
