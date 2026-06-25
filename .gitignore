@@ -37,6 +37,11 @@ node_modules/
 .coverage
 htmlcov/
 
+# Build artifacts
+dist/
+build/
+*.spec
+
 # CI / pre-commit
 .ruff_cache/
 .pytest_cache/

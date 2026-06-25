@@ -1,0 +1,35 @@
+{
+  "metadata": {
+    "session_id": "loop-001",
+    "loop_iteration": 1,
+    "loop_iterations_completed": 0,
+    "timestamp_utc": "2026-06-24T21:00:00Z"
+  },
+  "goal": {
+    "statement": "Make Property Management LeadGen production-ready for non-technical users — PyInstaller bundling, cross-platform installers, encrypted credentials, CI release pipeline, 65%+ coverage, zero Dependabot critical alerts.",
+    "stopping_conditions": [
+      "uv run pytest tests/ -q --tb=no --exit-zero",
+      "ruff check src/ tests/ --exit-zero",
+      "cd frontend && npm run build --exit-zero",
+      "cargo check --manifest-path src-tauri/Cargo.toml --exit-zero"
+    ],
+    "scope_boundaries": [
+      "Do NOT modify the IPC protocol wire format",
+      "Do NOT change the database schema without migration",
+      "Do NOT add external paid services (telemetry, monitoring)"
+    ]
+  },
+  "backlog": [
+    {"id": "P1", "title": "PyInstaller sidecar bundling", "description": "Test pyinstaller --onefile on src/main.py, verify binary works", "effort": "2h", "depends_on": []},
+    {"id": "P2", "title": "Tauri externalBin + tauri.conf.json", "description": "Configure tauri.conf.json for externalBin, update bundle settings", "effort": "1h", "depends_on": ["P1"]},
+    {"id": "P3", "title": "Keychain credential storage", "description": "Move API keys from SQLite plaintext to OS keychain (keyring lib)", "effort": "3h", "depends_on": []},
+    {"id": "P4", "title": "npm audit fixes", "description": "Fix 5 Dependabot alerts from npm deps", "effort": "1h", "depends_on": []},
+    {"id": "P5", "title": "Coverage improvements — county_assessor and csv_import", "description": "Add unit tests for county_assessor.py (18%) and csv_import.py (33%)", "effort": "2h", "depends_on": []},
+    {"id": "P6", "title": "Release CI pipeline", "description": "GitHub Actions release workflow building installers for all platforms", "effort": "3h", "depends_on": ["P2", "P4"]},
+    {"id": "P7", "title": "Frontend E2E smoke test", "description": "Playwright-based frontend integration test", "effort": "3h", "depends_on": []}
+  ],
+  "history": [],
+  "verifier_feedback": null,
+  "exit_status": "IN_PROGRESS",
+  "next_steps": "Iteration 1: Test PyInstaller bundling"
+}
