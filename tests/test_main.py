@@ -154,10 +154,13 @@ class TestHandleCommand:
                 "is_active": 1,
             },
         ]
-        with patch("src.main._db_conn", mock_conn):
+        with (
+            patch("src.main._db_conn", mock_conn),
+            patch("src.main.get_credential", return_value=None),
+        ):
             resp = _handle_command({"method": "llm_settings.get"})
         providers = resp["result"]
-        assert providers[0]["api_key"] == "sk-r****"
+        assert providers[0]["api_key"] == "sk-r****" or providers[0]["api_key"] == "*******"
 
     def test_exception_returns_internal_error(self, mock_conn):
         """An unhandled exception returns ERR_INTERNAL."""

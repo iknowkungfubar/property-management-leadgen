@@ -27,6 +27,11 @@ from src.db.connection import get_connection
 from src.db.migrations import run_migrations
 from src.db.schema import apply_schema
 from src.llm.factory import get_active_llm_client
+from src.utils.credentials import (
+    get_credential,
+    migrate_from_sqlite,
+    store_credential,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -235,13 +240,18 @@ def _handle_command(
             return _success_response(req_id, event)
 
         if method == "llm_settings.set":
+            provider = params.get("provider", "")
+            api_key = params.get("api_key", "")
+            # Store key in OS keychain if provided
+            if api_key and not api_key.endswith("****"):
+                store_credential(f"llm/{provider}/api_key", api_key)
             conn.execute(
                 "INSERT OR REPLACE INTO llm_settings "
                 "(provider, api_key, base_url, selected_model, is_active) "
                 "VALUES (?, ?, ?, ?, ?)",
                 (
-                    params.get("provider", ""),
-                    params.get("api_key", ""),
+                    provider,
+                    api_key[:4] + "****" if api_key and len(api_key) > 4 else (api_key or ""),
                     params.get("base_url", ""),
                     params.get("selected_model", ""),
                     1 if params.get("is_active") else 0,
@@ -249,17 +259,25 @@ def _handle_command(
             )
             conn.commit()
             return _success_response(req_id, "OK")
-
         if method == "llm_settings.get":
             rows = conn.execute(
                 "SELECT provider, api_key, base_url, selected_model, is_active "
                 "FROM llm_settings ORDER BY provider",
             ).fetchall()
+            # Mask API keys in responses; try keychain for full key
             masked = []
             for r in rows:
                 d = dict(r)
                 if d.get("api_key"):
-                    d["api_key"] = d["api_key"][:4] + "****" if len(d["api_key"]) > 4 else "****"
+                    # Try to get the real key from keychain
+                    keychain_key = f"llm/{d['provider']}/api_key"
+                    real_key = get_credential(keychain_key)
+                    if real_key:
+                        d["api_key"] = real_key[:4] + "****"
+                    else:
+                        d["api_key"] = (
+                            d["api_key"][:4] + "****" if len(d["api_key"]) > 4 else "****"
+                        )
                 masked.append(d)
             return _success_response(req_id, masked)
 
@@ -328,6 +346,11 @@ def main() -> None:
     _db_conn = get_connection(db_path)
     apply_schema(_db_conn)
     run_migrations(_db_conn)
+
+    # Migrate any existing plaintext API keys to OS keychain
+    migrated = migrate_from_sqlite(_db_conn)
+    if migrated:
+        logger.info("Migrated %d API key(s) to OS keychain", migrated)
 
     for line in sys.stdin:
         line = line.strip()
