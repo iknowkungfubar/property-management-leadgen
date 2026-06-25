@@ -191,16 +191,95 @@ class TestHandleCommand:
         assert resp["result"] == {"pong": True}
         assert resp["id"] is None
 
+    def test_csv_import_missing_file(self, mock_conn):
+        """CSV import with non-existent file returns ERR_INTERNAL."""
+        with patch("src.main._db_conn", mock_conn):
+            resp = _handle_command(
+                {"method": "discovery.import_csv", "params": {"file_path": "/nonexistent/file.csv"}}
+            )
+        assert resp["error"]["code"] in (ERR_VALIDATION, ERR_INTERNAL)
+
+    def test_entity_unmask_no_llm(self, mock_conn):
+        """entity.unmask works without an LLM client."""
+        with (
+            patch("src.main._db_conn", mock_conn),
+            patch("src.main.get_active_llm_client", side_effect=ValueError("no LLM")),
+        ):
+            resp = _handle_command(
+                {
+                    "method": "entity.unmask",
+                    "params": {"apn": "123-456", "recorded_owner": "Test LLC"},
+                }
+            )
+        assert "result" in resp
+
     @pytest.mark.parametrize(
-        ("method", "params"),
+        ("method", "params", "expected_field"),
         [
-            ("output.export_csv", {"leads": []}),
-            ("output.export_json", {"leads": []}),
+            ("output.export_csv", {"leads": []}, "csv"),
+            ("output.export_json", {"leads": []}, "json"),
         ],
     )
-    def test_output_methods_return_strings(self, mock_conn, method, params):
+    def test_output_methods_return_strings(self, mock_conn, method, params, expected_field):
         """Output methods return string results."""
         with patch("src.main._db_conn", mock_conn):
             resp = _handle_command({"method": method, "params": params})
         assert "result" in resp
-        assert isinstance(list(resp["result"].values())[0], str)
+        assert isinstance(resp["result"].get(expected_field), str)
+
+
+# ── Watchdog lifecycle ──────────────────────────────────────────────────
+
+
+class TestWatchdog:
+    """Verify the parent watchdog thread starts correctly."""
+
+    @patch("src.main.os.getppid", return_value=12345)
+    @patch("src.main.threading.Thread")
+    def test_start_watchdog_when_ppid_greater_than_one(self, mock_thread, mock_getppid):
+        """Watchdog starts a daemon thread when ppid > 1."""
+        from src.main import _start_parent_watchdog
+
+        _start_parent_watchdog()
+        mock_thread.assert_called_once()
+        assert mock_thread.call_args[1]["daemon"] is True
+        mock_thread.return_value.start.assert_called_once()
+
+    @patch("src.main.os.getppid", return_value=1)
+    @patch("src.main.threading.Thread")
+    def test_start_watchdog_skipped_when_orphaned(self, mock_thread, mock_getppid):
+        """Watchdog does NOT start when ppid is 1 (orphaned process)."""
+        from src.main import _start_parent_watchdog
+
+        _start_parent_watchdog()
+        mock_thread.assert_not_called()
+
+    @patch("src.main.os.getppid")
+    @patch("src.main.os.kill")
+    def test_poll_parent_detects_reparenting(self, mock_kill, mock_getppid):
+        """_poll_parent exits when getppid changes.
+
+        Uses pytest.raises(SystemExit) because _poll_parent calls
+        sys.exit(0) which raises SystemExit to exit the thread.
+        """
+        mock_getppid.return_value = 99999  # Different from stored ppid
+
+        from src.main import _poll_parent
+
+        with patch("src.main.POLL_INTERVAL", 0.01), pytest.raises(SystemExit) as exc_info:
+            _poll_parent(ppid=12345)
+        assert exc_info.value.code == 0
+
+    @patch("src.main.os.getppid", return_value=12345)
+    @patch("src.main.os.kill", side_effect=OSError)
+    def test_poll_parent_exits_on_dead_parent(self, mock_kill, mock_getppid):
+        """_poll_parent exits when os.kill indicates parent is gone.
+
+        Uses pytest.raises(SystemExit) because _poll_parent calls
+        sys.exit(0) which raises SystemExit to exit the thread.
+        """
+        from src.main import _poll_parent
+
+        with patch("src.main.POLL_INTERVAL", 0.01), pytest.raises(SystemExit) as exc_info:
+            _poll_parent(ppid=12345)
+        assert exc_info.value.code == 0
