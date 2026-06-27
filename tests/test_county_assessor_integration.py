@@ -146,8 +146,8 @@ class TestSearchByAddress:
         responses = iter([fail_resp, fail_resp, success_resp])
 
         with patch.object(httpx, "Client") as mock_cls:
-            mock_cls.return_value.__enter__.return_value.get.side_effect = (
-                lambda *_args, **__kw: next(responses)
+            mock_cls.return_value.__enter__.return_value.get.side_effect = lambda *_args, **__kw: (
+                next(responses)
             )
             result = search_by_address("123 Main St", "Orange County")
 
@@ -161,8 +161,8 @@ class TestSearchByAddress:
         responses = iter([fail_resp] * n_attempts)
 
         with patch.object(httpx, "Client") as mock_cls:
-            mock_cls.return_value.__enter__.return_value.get.side_effect = (
-                lambda *_args, **__kw: next(responses)
+            mock_cls.return_value.__enter__.return_value.get.side_effect = lambda *_args, **__kw: (
+                next(responses)
             )
             result = search_by_address("123 Main St", "Orange County")
 
