@@ -1,0 +1,31 @@
+# Gitleaks configuration for Property Management LeadGen
+# https://github.com/gitleaks/gitleaks
+
+[allowlist]
+  description = "Allowlisted paths and regexes for false-positive reduction"
+
+  # Allow test files, docs, config, and CI files — they often contain
+  # mock secrets, example values, and non-sensitive references.
+  paths = [
+    "tests/",
+    "test_*",
+    "*_test.py",
+    "docs/",
+    ".github/",
+    ".env.example",
+    ".env.template",
+  ]
+
+  # Regular expression allowlist for known false positives
+  regexes = [
+    # Example/placeholder values
+    "(?i)example\\.com",
+    "(?i)your-key-here",
+    "(?i)changeme",
+    "(?i)placeholder",
+    # Project-specific false positives — GitHub secret references, not real keys
+    "TAURI_SIGNING_PRIVATE_KEY",
+    "APPLE_ID",
+    "APPLE_PASSWORD",
+    "APPLE_TEAM_ID",
+  ]
