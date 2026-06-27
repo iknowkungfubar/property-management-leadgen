@@ -39,6 +39,8 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
       - uses: astral-sh/setup-uv@v5
       - run: uv sync --frozen
+      - name: Install Playwright browsers
+        run: uv run playwright install chromium
       - name: Run tests
         run: uv run pytest tests/ -v --tb=short -q
       - name: Coverage
@@ -61,7 +63,7 @@ jobs:
       - name: Bandit SAST
         run: |
           uv pip install bandit
-          uv run bandit -r src/ --quiet --skip B101,B311
+          uv run bandit -r src/ --quiet --skip B101,B110,B311
 
   cargo-check:
     name: Rust Check

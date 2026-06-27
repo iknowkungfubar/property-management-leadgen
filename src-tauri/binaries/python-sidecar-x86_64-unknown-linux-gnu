@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+"""
+Minimal placeholder sidecar for Property Management LeadGen.
+
+This sidecar listens on stdin for JSON-RPC requests and responds with
+stub results. It is a placeholder that satisfies the Tauri build resource
+check while the full AI agent sidecar is being developed/restored.
+
+Security note: This file is intentionally minimal — it does NOT execute
+arbitrary code, load AI models, or access external services.
+"""
+
+import sys
+import json
+
+
+def handle_request(request: dict) -> dict:
+    """Handle a JSON-RPC request and return a stub response."""
+    method = request.get("method", "")
+    req_id = request.get("id", None)
+
+    if method == "health":
+        return {"jsonrpc": "2.0", "result": {"status": "ok"}, "id": req_id}
+    elif method == "ping":
+        return {"jsonrpc": "2.0", "result": "pong", "id": req_id}
+    else:
+        return {
+            "jsonrpc": "2.0",
+            "error": {
+                "code": -32601,
+                "message": f"Method not implemented: {method}",
+            },
+            "id": req_id,
+        }
+
+
+def main() -> None:
+    """Main loop: read JSON lines from stdin, write responses to stdout."""
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            request = json.loads(line)
+        except json.JSONDecodeError as exc:
+            response = {
+                "jsonrpc": "2.0",
+                "error": {"code": -32700, "message": f"Parse error: {exc}"},
+                "id": None,
+            }
+        else:
+            response = handle_request(request)
+
+        sys.stdout.write(json.dumps(response) + "\n")
+        sys.stdout.flush()
+
+
+if __name__ == "__main__":
+    main()
