@@ -71,6 +71,7 @@ downloads/
 scraped_data/
 *.pdf
 *.png
+!src-tauri/icons/*.png
 *.jpg
 *.jpeg
 *.gif
