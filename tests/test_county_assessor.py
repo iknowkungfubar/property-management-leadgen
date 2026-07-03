@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from urllib.parse import urlparse
+
 import pytest
 
 from src.scrapers.county_assessor import (
@@ -18,7 +20,9 @@ class TestCountyEndpoints:
     def test_has_orange_county(self):
         """Orange County endpoint is configured."""
         assert "Orange County" in COUNTY_ENDPOINTS
-        assert "maps.ocgov.com" in COUNTY_ENDPOINTS["Orange County"]
+        url = COUNTY_ENDPOINTS["Orange County"]
+        parsed = urlparse(url)
+        assert parsed.hostname == "maps.ocgov.com"
 
     def test_endpoints_are_urls(self):
         """All endpoints are valid URLs."""
