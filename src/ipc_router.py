@@ -5,7 +5,8 @@ Extracted from main.py to make each command handler independently testable.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
