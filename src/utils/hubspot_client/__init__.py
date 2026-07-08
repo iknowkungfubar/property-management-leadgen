@@ -9,16 +9,21 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
+import uuid
 from collections import deque
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
 
+from src.utils.hubspot_client.errors import HubSpotError, HubSpotAuthError, HubSpotRateLimitError, HubSpotValidationError
+
 logger = logging.getLogger(__name__)
 
-# ── Constants ──────────────────────────────────────────────────────────────
 
+# ── Constants ──
 BASE_URL: str = "https://api.hubapi.com"
 CONTACTS_ENDPOINT: str = f"{BASE_URL}/crm/v3/objects/contacts"
 CONTACTS_BATCH_UPSERT: str = f"{BASE_URL}/crm/v3/objects/contacts/batch/upsert"
@@ -44,26 +49,7 @@ FIELD_MAP: dict[str, str] = {
 """Maps internal lead field names to HubSpot contact property names."""
 
 
-# ── Error types ────────────────────────────────────────────────────────────
-
-
-class HubSpotError(Exception):
-    """Base exception for HubSpot API errors."""
-
-
-class HubSpotAuthError(HubSpotError):
-    """Authentication failure (401 / 403)."""
-
-
-class HubSpotRateLimitError(HubSpotError):
-    """Rate limited (429)."""
-
-
-class HubSpotValidationError(HubSpotError):
-    """Request validation failure (400)."""
-
-
-# ── Client ─────────────────────────────────────────────────────────────────
+# ── Client ──
 
 
 class HubSpotClient:
