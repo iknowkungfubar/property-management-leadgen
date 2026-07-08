@@ -2,6 +2,7 @@
 
 Extracted from main.py to make each command handler independently testable.
 """
+
 from __future__ import annotations
 
 import logging
