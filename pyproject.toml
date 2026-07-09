@@ -50,6 +50,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["SLF001", "ARG002", "S101"]
+"tests/test_ipc_router.py" = ["ARG001"]
 
 [tool.ruff.format]
 quote-style = "double"
