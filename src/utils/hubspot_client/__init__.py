@@ -9,16 +9,18 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 import time
-import uuid
 from collections import deque
-from datetime import datetime, timezone
 from typing import Any
 
 import httpx
 
-from src.utils.hubspot_client.errors import HubSpotError, HubSpotAuthError, HubSpotRateLimitError, HubSpotValidationError
+from src.utils.hubspot_client.errors import (
+    HubSpotAuthError,
+    HubSpotError,
+    HubSpotRateLimitError,
+    HubSpotValidationError,
+)
 
 logger = logging.getLogger(__name__)
 
