@@ -9,6 +9,8 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/iknowkungfubar/property-management-leadgen/actions/workflows/ci.yml"><img src="https://github.com/iknowkungfubar/property-management-leadgen/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"/></a>
+  <a href="https://github.com/iknowkungfubar/property-management-leadgen/actions/workflows/codeql.yml"><img src="https://github.com/iknowkungfubar/property-management-leadgen/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL"/></a>
   <a href="#"><img src="https://img.shields.io/badge/tests-121%20passing-22c55e?style=flat-square" alt="Tests"/></a>
   <a href="#"><img src="https://img.shields.io/badge/coverage-59%25-6366f1?style=flat-square" alt="Coverage"/></a>
   <a href="#"><img src="https://img.shields.io/badge/lint-0%20errors-22c55e?style=flat-square" alt="Lint"/></a>
