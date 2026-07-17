@@ -95,3 +95,7 @@ ai-context.md
 SKILL.md
 *.hermes-profile
 .cursor/
+
+# Loop/agent state files — never commit iterative agent state
+loop-state.json
+loop-*.json
