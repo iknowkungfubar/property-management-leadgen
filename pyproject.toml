@@ -51,6 +51,11 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["SLF001", "ARG002", "S101"]
 "tests/test_ipc_router.py" = ["ARG001"]
+# src/sidecar/dispatch.py is intentionally extracted from the application root
+# (src.main) and reads its stateful globals (_db_conn, _start_time) lazily via
+# ``import src.main`` so ``patch("src.main.X")`` stays live in tests. That
+# cross-module private access is the designed contract, not a smell.
+"src/sidecar/dispatch.py" = ["SLF001"]
 
 [tool.ruff.format]
 quote-style = "double"
