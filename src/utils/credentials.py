@@ -212,8 +212,8 @@ def migrate_from_sqlite(db_conn: Any) -> int:
 
     count = 0
     for row in rows:
-        provider = row["provider"]
-        api_key = row["api_key"]
+        provider = row[0]
+        api_key = row[1]
 
         # Skip already-masked keys
         if api_key.endswith("****"):
