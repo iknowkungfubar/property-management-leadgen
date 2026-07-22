@@ -15,7 +15,7 @@ dependencies = [
     "ruff>=0.15",
     "pyinstaller>=6.21.0",
     "keyring>=25.7.0",
-    "pillow>=12.2.0",
+    "pillow>=12.3.0",
     "python-json-logger>=3.2.1",
 ]
 
