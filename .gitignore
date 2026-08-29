@@ -99,3 +99,4 @@ SKILL.md
 # Loop/agent state files — never commit iterative agent state
 loop-state.json
 loop-*.json
+.token-policy/
